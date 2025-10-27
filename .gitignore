@@ -1,26 +1,45 @@
-# React Native / Expo
-node_modules/
-.expo/
-.expo-shared/
-dist/
-build/
-web-build/
-npm-debug.log
-yarn-error.log
-package-lock.json
-# Java / Spring Boot
-target/
-.idea/
-*.iml
-*.class
-*.log
-*.jar
-*.war
-*.ear
-# Application Config
-application.yml
-# OS Files
+# === Global ===
 .DS_Store
 Thumbs.db
-# Misc
-.env
+*.log
+
+# === Node / React Native (Frontend) ===
+Frontend/node_modules/
+Frontend/.expo/
+Frontend/.expo-shared/
+Frontend/.expo/*
+Frontend/.cache/
+Frontend/web-build/
+Frontend/dist/
+Frontend/build/
+Frontend/npm-debug.log*
+Frontend/yarn-debug.log*
+Frontend/yarn-error.log*
+
+# === Android / iOS Artifacts ===
+*.apk
+*.aab
+*.ipa
+android/
+ios/
+
+# === Java / Spring Boot (Backend) ===
+Backend/target/
+Backend/.mvn/
+Backend/.idea/
+Backend/.classpath
+Backend/.project
+Backend/.settings/
+Backend/.vscode/
+Backend/mvnw
+Backend/mvnw.cmd
+Backend/pom.xml.tag
+Backend/pom.xml.releaseBackup
+Backend/pom.xml.versionsBackup
+Backend/logs/
+Backend/*.log
+
+# === Environment Files ===
+*.env
+.env.*
+.env.local
