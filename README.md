@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Senior Design Project – E-Commerce Store
 
 **Team Members:** Steve Tapia & Omar Flores  
@@ -45,15 +44,11 @@ It includes both **customer** and **admin** functionalities, built using a singl
 
 ## Getting Started
 
-### Backend Setup
+## Backend Setup
 cd backend
 ./mvnw spring-boot:run
 
-### Frontend Setup
+## Frontend Setup
 cd frontend
 npm install
 npx expo start
-=======
-# Senior-Design-Project
-E-Commerce Store with Recommendation Engine
->>>>>>> 0e8602aaa3aab3f2677434c8806cd0634275f5b0
