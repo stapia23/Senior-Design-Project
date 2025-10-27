@@ -18,7 +18,6 @@ target/
 *.war
 *.ear
 # Application Config
-application.properties
 application.yml
 # OS Files
 .DS_Store
