@@ -42,8 +42,6 @@ It includes both **customer** and **admin** functionalities, built using a singl
 
 ---
 
-## Getting Started
-
 ## Backend Setup
 cd backend
 ./mvnw spring-boot:run
