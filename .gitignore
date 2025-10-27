@@ -1,0 +1,45 @@
+# === Global ===
+.DS_Store
+Thumbs.db
+*.log
+
+# === Node / React Native (Frontend) ===
+Frontend/node_modules/
+Frontend/.expo/
+Frontend/.expo-shared/
+Frontend/.expo/*
+Frontend/.cache/
+Frontend/web-build/
+Frontend/dist/
+Frontend/build/
+Frontend/npm-debug.log*
+Frontend/yarn-debug.log*
+Frontend/yarn-error.log*
+
+# === Android / iOS Artifacts ===
+*.apk
+*.aab
+*.ipa
+android/
+ios/
+
+# === Java / Spring Boot (Backend) ===
+Backend/target/
+Backend/.mvn/
+Backend/.idea/
+Backend/.classpath
+Backend/.project
+Backend/.settings/
+Backend/.vscode/
+Backend/mvnw
+Backend/mvnw.cmd
+Backend/pom.xml.tag
+Backend/pom.xml.releaseBackup
+Backend/pom.xml.versionsBackup
+Backend/logs/
+Backend/*.log
+
+# === Environment Files ===
+*.env
+.env.*
+.env.local
