@@ -1,0 +1,27 @@
+# React Native / Expo
+node_modules/
+.expo/
+.expo-shared/
+dist/
+build/
+web-build/
+npm-debug.log
+yarn-error.log
+package-lock.json
+# Java / Spring Boot
+target/
+.idea/
+*.iml
+*.class
+*.log
+*.jar
+*.war
+*.ear
+# Application Config
+application.properties
+application.yml
+# OS Files
+.DS_Store
+Thumbs.db
+# Misc
+.env
