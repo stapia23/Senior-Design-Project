@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 
 @Entity
@@ -21,11 +22,17 @@ public class Order {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @OneToMany(cascade = CascadeType.ALL, mappedBy = "order", orphanRemoval = true)
+    @OneToMany(
+            cascade = CascadeType.ALL,
+            mappedBy = "order",
+            orphanRemoval = true,
+            fetch = FetchType.EAGER
+    )
+    @JsonManagedReference
     private List<OrderItem> orderItems;
 
     private BigDecimal totalPrice;
@@ -35,17 +42,17 @@ public class Order {
 
     private LocalDateTime createdAt;
 
-    public Order() {
-    }
+    public Order() {}
 
     public Order(User user, List<OrderItem> orderItems, Status status) {
         this.user = user;
         this.orderItems = orderItems;
         this.status = status;
-        // Link each OrderItem to this order
+
         if (orderItems != null) {
             orderItems.forEach(item -> item.setOrder(this));
         }
+
         calculateTotalPrice();
     }
 

@@ -1,5 +1,6 @@
 import React, { useState, useContext } from "react"; 
 import { View, TextInput, Button, Alert, TouchableOpacity, Text, ActivityIndicator, StyleSheet } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { UserContext } from "../context/UserContext";
 
 export default function LoginScreen({ navigation, route }) {
@@ -21,7 +22,14 @@ export default function LoginScreen({ navigation, route }) {
     }
     try {
       setLoading(true);
-      await loginUser(email, password); // <- context handles API & AsyncStorage
+      await loginUser(email, password);   // stores JWT in AsyncStorage
+
+      // Store for Expo Web reload after Stripe checkout
+      const storedToken = await AsyncStorage.getItem("token");
+      if (storedToken) {
+        localStorage.setItem("token", storedToken);
+      }
+
       navigation.navigate(redirectScreen);
     } catch (err) {
       Alert.alert("Login failed", err.message || "Login failed. Please try again.");
@@ -37,7 +45,7 @@ export default function LoginScreen({ navigation, route }) {
     }
     try {
       setLoading(true);
-      await registerUser({ name, email, password, role: "CUSTOMER" }); // <- context handles API
+      await registerUser({ name, email, password, role: "CUSTOMER" });
       Alert.alert("Success", "Account created! You can now log in.");
       setRegisterMode(false);
       setName("");
@@ -60,6 +68,7 @@ export default function LoginScreen({ navigation, route }) {
           style={styles.input}
         />
       )}
+
       <TextInput
         placeholder="Email"
         value={email}
@@ -68,6 +77,7 @@ export default function LoginScreen({ navigation, route }) {
         keyboardType="email-address"
         style={styles.input}
       />
+
       <View style={{ position: "relative", marginBottom: 10 }}>
         <TextInput
           placeholder="Password"
@@ -80,7 +90,9 @@ export default function LoginScreen({ navigation, route }) {
           onPress={() => setShowPassword(!showPassword)}
           style={{ position: "absolute", right: 10, top: 4, padding: 4 }}
         >
-          <Text style={{ color: "blue", fontWeight: "bold" }}>{showPassword ? "Hide" : "Show"}</Text>
+          <Text style={{ color: "blue", fontWeight: "bold" }}>
+            {showPassword ? "Hide" : "Show"}
+          </Text>
         </TouchableOpacity>
       </View>
 

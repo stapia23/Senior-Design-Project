@@ -1,11 +1,33 @@
-import React, { useEffect, useState } from "react";
-import {View,Text,Button,TextInput,Alert,ScrollView,Image,ActivityIndicator,StyleSheet,KeyboardAvoidingView,Platform,TouchableOpacity} from "react-native";
+import React, { useEffect, useState, useContext } from "react";
+import {
+  View,
+  Text,
+  Button,
+  TextInput,
+  Alert,
+  ScrollView,
+  Image,
+  ActivityIndicator,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableOpacity,
+} from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { Picker } from "@react-native-picker/picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import {getAdmins,createAdmin,createProduct,getProducts,deleteProduct,deleteAdmin,uploadImage} from "../services/api";
-import { useContext } from "react";
+import {
+  getAdmins,
+  createAdmin,
+  createProduct,
+  getProducts,
+  deleteProduct,
+  deleteAdmin,
+  uploadImage,
+} from "../services/api";
 import { UserContext } from "../context/UserContext";
+
+const API_URL = "http://localhost:8080";
 
 const confirmDialog = async (title, message) => {
   if (Platform.OS === "web") {
@@ -22,13 +44,16 @@ const confirmDialog = async (title, message) => {
 
 export default function AdminDashboard({ navigation }) {
   const { setUser, setToken: setGlobalToken } = useContext(UserContext);
+
   const [activeTab, setActiveTab] = useState("products");
   const [token, setToken] = useState(null);
   const [products, setProducts] = useState([]);
   const [admins, setAdmins] = useState([]);
+  const [orders, setOrders] = useState([]);
 
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [loadingOrders, setLoadingOrders] = useState(false);
 
   const [pageInfo, setPageInfo] = useState({ page: 0, totalPages: 1 });
 
@@ -49,6 +74,7 @@ export default function AdminDashboard({ navigation }) {
     password: "",
   });
 
+  // INITIAL LOAD
   useEffect(() => {
     const init = async () => {
       const t = await AsyncStorage.getItem("token");
@@ -60,23 +86,20 @@ export default function AdminDashboard({ navigation }) {
     init();
   }, []);
 
-  // API FETCHERS
+  useEffect(() => {
+    if (activeTab === "orders" && token) fetchOrders(token);
+  }, [activeTab]);
+
+  // FETCH DATA
   const fetchProducts = async (jwt) => {
     try {
       const data = await getProducts(jwt, null, 0, 1000);
-
-      if (Array.isArray(data)) {
-        setProducts(data);
-      } else if (data.content) {
-        setProducts(data.content);
-      } else {
-        setProducts([]);
-      }
-
+      if (Array.isArray(data)) setProducts(data);
+      else if (data.content) setProducts(data.content);
+      else setProducts([]);
       setPageInfo({ page: 0, totalPages: 1 });
     } catch (e) {
-      console.log("Failed to fetch products:", e.message);
-      Alert.alert("Error", "Could not load products. Please try again.");
+      console.log("Fetch products error:", e);
     }
   };
 
@@ -85,21 +108,38 @@ export default function AdminDashboard({ navigation }) {
       const data = await getAdmins(jwt);
       setAdmins(Array.isArray(data) ? data : []);
     } catch (e) {
-      console.log("Failed to fetch admins:", e.message);
+      console.log("Fetch admins error:", e);
     }
   };
 
-  // IMAGE PICK & UPLOAD
+  const fetchOrders = async (jwt) => {
+    try {
+      setLoadingOrders(true);
+      const res = await fetch(`${API_URL}/api/orders/admin/all`, {
+        headers: { Authorization: `Bearer ${jwt}` },
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setOrders(data);
+    } catch (e) {
+      Alert.alert("Error", "Failed to load orders.");
+    } finally {
+      setLoadingOrders(false);
+    }
+  };
+
+  // IMAGE PICKER
   const pickImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
+    if (!permission.granted)
       return Alert.alert("Permission required", "Allow photo access to continue.");
-    }
+
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       quality: 0.8,
     });
+
     if (!result.canceled) uploadPickedImage(result.assets[0].uri);
   };
 
@@ -107,24 +147,23 @@ export default function AdminDashboard({ navigation }) {
     try {
       setUploading(true);
       const filename = uri.split("/").pop();
-      const type = `image/${(filename || "").split(".").pop() || "jpeg"}`;
+      const type = `image/${(filename || "").split(".").pop()}`;
       const formData = new FormData();
       formData.append("file", { uri, name: filename, type });
       const imageUrl = await uploadImage(formData, token);
       setNewProduct((p) => ({ ...p, image: imageUrl }));
-      Alert.alert("Success", "Image uploaded successfully!");
     } catch (err) {
-      Alert.alert("Upload failed", err.response?.data?.message || err.message);
+      Alert.alert("Upload failed", err.message);
     } finally {
       setUploading(false);
     }
   };
 
-  // PRODUCT ACTIONS
+  // PRODUCTS
   const handleAddOrEditProduct = async () => {
-    if (!newProduct.name || !newProduct.price) {
-      return Alert.alert("Error", "Name and price are required");
-    }
+    if (!newProduct.name || !newProduct.price)
+      return Alert.alert("Error", "Name and price required");
+
     try {
       const payload = {
         id: newProduct.id || undefined,
@@ -136,7 +175,6 @@ export default function AdminDashboard({ navigation }) {
         imageUrl: newProduct.image,
       };
       await createProduct(payload, token);
-      Alert.alert("Success", newProduct.id ? "Product updated!" : "Product added!");
       setNewProduct({
         id: null,
         name: "",
@@ -146,60 +184,57 @@ export default function AdminDashboard({ navigation }) {
         image: "",
         category: "",
       });
-      fetchProducts(token, pageInfo.page);
-    } catch (err) {
-      Alert.alert("Error", err.response?.data?.message || err.message);
-    }
-  };
-
-  const handleEditProduct = (product) => {
-    setNewProduct({
-      id: product.id,
-      name: product.name,
-      description: product.description,
-      price: String(product.price),
-      stock: String(product.stock),
-      image: product.imageUrl,
-      category: product.category,
-    });
-  };
-
-  const handleDeleteProduct = async (id) => {
-    const confirmed = await confirmDialog("Confirm Delete", "Are you sure you want to delete this product?");
-    if (!confirmed) return;
-
-    try {
-      await deleteProduct(id, token);
-      fetchProducts(token, pageInfo.page);
-      Alert.alert("Deleted", "Product deleted successfully");
+      fetchProducts(token);
     } catch (err) {
       Alert.alert("Error", err.message);
     }
   };
 
-  // ADMIN ACTIONS
+  const handleEditProduct = (p) => {
+    setNewProduct({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      price: String(p.price),
+      stock: String(p.stock),
+      image: p.imageUrl,
+      category: p.category,
+    });
+  };
+
+  const handleDeleteProduct = async (id) => {
+    const confirmed = await confirmDialog("Confirm", "Delete this product?");
+    if (!confirmed) return;
+    await deleteProduct(id, token);
+    fetchProducts(token);
+  };
+
+  // ADMINS
   const handleAddAdmin = async () => {
-    if (!newAdmin.name || !newAdmin.email || !newAdmin.password) {
-      return Alert.alert("Error", "All fields are required");
-    }
-    try {
-      await createAdmin({ ...newAdmin, role: "ADMIN" }, token);
-      Alert.alert("Success", "Admin added!");
-      setNewAdmin({ id: null, name: "", email: "", password: "" });
-      fetchAdmins(token);
-    } catch (err) {
-      Alert.alert("Error", err.response?.data?.message || err.message);
-    }
+    if (!newAdmin.name || !newAdmin.email || !newAdmin.password)
+      return Alert.alert("Error", "Fill all fields");
+
+    await createAdmin({ ...newAdmin, role: "ADMIN" }, token);
+    setNewAdmin({ id: null, name: "", email: "", password: "" });
+    fetchAdmins(token);
   };
 
   const handleDeleteAdmin = async (id) => {
-    const confirmed = await confirmDialog("Confirm Delete", "Are you sure you want to delete this admin?");
+    const confirmed = await confirmDialog("Confirm", "Delete this admin?");
     if (!confirmed) return;
+    await deleteAdmin(id, token);
+    fetchAdmins(token);
+  };
 
+  // ORDERS
+  const handleUpdateOrderStatus = async (orderId, newStatus) => {
     try {
-      await deleteAdmin(id, token);
-      fetchAdmins(token);
-      Alert.alert("Deleted", "Admin deleted successfully");
+      const res = await fetch(
+        `${API_URL}/api/orders/admin/${orderId}/status?status=${newStatus}`,
+        { method: "PATCH", headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!res.ok) throw new Error(await res.text());
+      fetchOrders(token);
     } catch (err) {
       Alert.alert("Error", err.message);
     }
@@ -207,35 +242,16 @@ export default function AdminDashboard({ navigation }) {
 
   // LOGOUT
   const handleLogout = async () => {
-    const confirmed = await confirmDialog("Confirm Logout", "Are you sure you want to log out?");
+    const confirmed = await confirmDialog("Confirm", "Logout?");
     if (!confirmed) return;
 
-    try {
-      await AsyncStorage.multiRemove(["token", "user"]);
-
-      setToken(null);
-      setGlobalToken(null);
-      setUser(null);
-      setProducts([]);
-      setAdmins([]);
-
-      if (Platform.OS === "web") {
-        navigation.navigate("Home");
-      } else {
-        navigation.reset({
-          index: 0,
-          routes: [{ name: "Home" }],
-        });
-      }
-
-      Alert.alert("Logged Out", "You have been logged out successfully.");
-    } catch (err) {
-      console.error("Logout failed:", err);
-      Alert.alert("Error", "Something went wrong while logging out.");
-    }
+    await AsyncStorage.multiRemove(["token", "user"]);
+    setUser(null);
+    setGlobalToken(null);
+    navigation.reset({ index: 0, routes: [{ name: "Home" }] });
   };
 
-  // UI
+  // LOADING
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -246,60 +262,76 @@ export default function AdminDashboard({ navigation }) {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      {/* Top App Bar */}
+    <KeyboardAvoidingView style={{ flex: 1 }}>
+      {/* TOP BAR */}
       <View style={styles.topBar}>
         <Text style={styles.topBarTitle}>Admin Dashboard</Text>
-        <Button title="Logout" color="#d9534f" onPress={handleLogout} />
+
+        <View style={{ flexDirection: "row", gap: 10 }}>
+          <TouchableOpacity
+            style={styles.homeBtn}
+            onPress={() => navigation.navigate("Home")}
+          >
+            <Text style={styles.homeBtnText}>Home</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.logoutBtn}
+            onPress={handleLogout}
+          >
+            <Text style={styles.logoutBtnText}>Logout</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Tabs */}
+      {/* TABS */}
       <View style={styles.tabsRow}>
-        <TouchableOpacity
-          style={[styles.tabBtn, activeTab === "products" && styles.tabBtnActive]}
-          onPress={() => setActiveTab("products")}
-        >
-          <Text style={[styles.tabText, activeTab === "products" && styles.tabTextActive]}>
-            Manage Products
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tabBtn, activeTab === "admins" && styles.tabBtnActive]}
-          onPress={() => setActiveTab("admins")}
-        >
-          <Text style={[styles.tabText, activeTab === "admins" && styles.tabTextActive]}>
-            Manage Admins
-          </Text>
-        </TouchableOpacity>
+        {["products", "admins", "orders"].map((tab) => (
+          <TouchableOpacity
+            key={tab}
+            style={[styles.tabBtn, activeTab === tab && styles.tabBtnActive]}
+            onPress={() => setActiveTab(tab)}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === tab && styles.tabTextActive,
+              ]}
+            >
+              {tab === "products"
+                ? "Manage Products"
+                : tab === "admins"
+                ? "Manage Admins"
+                : "Manage Orders"}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
-      {/* Content Area (forces browser scroll on web) */}
-      <ScrollView
-        style={styles.pageScroll}
-        contentContainerStyle={styles.pageContainer}
-        keyboardShouldPersistTaps="handled"
-      >
+      <ScrollView style={styles.pageScroll} contentContainerStyle={styles.pageContainer}>
+        {/* PRODUCTS TAB */}
         {activeTab === "products" ? (
           <View>
             <Text style={styles.sectionTitle}>Products</Text>
 
-            {/* Scrollable list box */}
             <View style={styles.listBox}>
-              <ScrollView style={styles.innerScroll} contentContainerStyle={{ paddingVertical: 6 }}>
+              <ScrollView style={styles.innerScroll}>
                 {products.map((p) => (
                   <View key={p.id} style={styles.itemRow}>
-                    {p.imageUrl && <Image source={{ uri: p.imageUrl }} style={styles.productImage} />}
+                    {p.imageUrl && (
+                      <Image source={{ uri: p.imageUrl }} style={styles.productImage} />
+                    )}
                     <View style={{ flex: 1 }}>
                       <Text style={styles.itemTitle}>{p.name}</Text>
-                      <Text style={styles.itemSub}>${p.price} — {p.category}</Text>
+                      <Text style={styles.itemSub}>
+                        ${p.price} — {p.category}
+                      </Text>
                     </View>
+
                     <TouchableOpacity onPress={() => handleEditProduct(p)}>
                       <Text style={styles.editBtn}>Edit</Text>
                     </TouchableOpacity>
+
                     <TouchableOpacity onPress={() => handleDeleteProduct(p.id)}>
                       <Text style={styles.deleteBtn}>Delete</Text>
                     </TouchableOpacity>
@@ -308,15 +340,18 @@ export default function AdminDashboard({ navigation }) {
               </ScrollView>
             </View>
 
-            <Text style={styles.subTitle}>{newProduct.id ? "Edit Product" : "Add Product"}</Text>
-            {["name", "description", "price", "stock", "image"].map((f) => (
+            {/* ADD/EDIT PRODUCT FORM */}
+            <Text style={styles.subTitle}>
+              {newProduct.id ? "Edit Product" : "Add Product"}
+            </Text>
+
+            {["name", "description", "price", "stock"].map((f) => (
               <TextInput
                 key={f}
                 style={styles.input}
-                placeholder={f.charAt(0).toUpperCase() + f.slice(1)}
+                placeholder={f.toUpperCase()}
                 value={newProduct[f]}
-                keyboardType={["price", "stock"].includes(f) ? "numeric" : "default"}
-                onChangeText={(text) => setNewProduct((prev) => ({ ...prev, [f]: text }))}
+                onChangeText={(t) => setNewProduct((prev) => ({ ...prev, [f]: t }))}
               />
             ))}
 
@@ -326,37 +361,51 @@ export default function AdminDashboard({ navigation }) {
               style={styles.input}
             >
               <Picker.Item label="Select category..." value="" />
-              {["Clothing", "Electronics", "Shoes", "Watches", "Jewellery", "Beauty"].map((cat) => (
-                <Picker.Item key={cat} label={cat} value={cat} />
-              ))}
+              {["Clothing", "Electronics", "Shoes", "Watches", "Jewellery", "Beauty"].map(
+                (cat) => (
+                  <Picker.Item key={cat} label={cat} value={cat} />
+                )
+              )}
             </Picker>
 
-            <Button
-              title={uploading ? "Uploading..." : "Pick Image"}
-              onPress={pickImage}
-              disabled={uploading}
+            <TextInput
+              style={styles.input}
+              placeholder="Paste Image URL"
+              value={newProduct.image}
+              onChangeText={(url) =>
+                setNewProduct((prev) => ({ ...prev, image: url.trim() }))
+              }
             />
-            {newProduct.image && (
+
+            {/* PICK IMAGE FROM DEVICE */}
+            <Button title="Pick Image From Device" onPress={pickImage} />
+
+            {/* REVIEW */}
+            {newProduct.image ? (
               <Image source={{ uri: newProduct.image }} style={styles.previewImage} />
-            )}
+            ) : null}
+
             <Button
               title={newProduct.id ? "Update Product" : "Add Product"}
               onPress={handleAddOrEditProduct}
             />
           </View>
-        ) : (
+        ) : null}
+
+        {/* ADMINS TAB */}
+        {activeTab === "admins" ? (
           <View>
             <Text style={styles.sectionTitle}>Admins</Text>
 
-            {/* Scrollable list box */}
             <View style={styles.listBox}>
-              <ScrollView style={styles.innerScroll} contentContainerStyle={{ paddingVertical: 6 }}>
+              <ScrollView style={styles.innerScroll}>
                 {admins.map((a) => (
                   <View key={a.id} style={styles.itemRow}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.itemTitle}>{a.name}</Text>
                       <Text style={styles.itemSub}>{a.email}</Text>
                     </View>
+
                     <TouchableOpacity onPress={() => handleDeleteAdmin(a.id)}>
                       <Text style={styles.deleteBtn}>Delete</Text>
                     </TouchableOpacity>
@@ -365,27 +414,82 @@ export default function AdminDashboard({ navigation }) {
               </ScrollView>
             </View>
 
+            {/* ADD ADMIN FORM */}
             <Text style={styles.subTitle}>Add Admin</Text>
+
             {["name", "email", "password"].map((f) => (
               <TextInput
                 key={f}
                 style={styles.input}
-                placeholder={f.charAt(0).toUpperCase() + f.slice(1)}
+                placeholder={f.toUpperCase()}
                 value={newAdmin[f]}
                 secureTextEntry={f === "password"}
                 onChangeText={(t) => setNewAdmin((prev) => ({ ...prev, [f]: t }))}
-                autoCapitalize={f === "email" ? "none" : "sentences"}
               />
             ))}
+
             <Button title="Add Admin" onPress={handleAddAdmin} />
           </View>
-        )}
+        ) : null}
+
+        {/* ORDERS TAB */}
+        {activeTab === "orders" ? (
+          <View>
+            <Text style={styles.sectionTitle}>Orders</Text>
+
+            {loadingOrders ? (
+              <ActivityIndicator size="large" />
+            ) : orders.length === 0 ? (
+              <Text>No orders found.</Text>
+            ) : (
+              orders.map((o) => (
+                <TouchableOpacity
+                  key={o.id}
+                  style={styles.orderBox}
+                  onPress={() =>
+                    navigation.navigate("AdminOrderDetails", { orderId: o.id })
+                  }
+                >
+                  <Text style={styles.itemTitle}>Order #{o.id}</Text>
+                  <Text>User: {o.user?.email || "N/A"}</Text>
+                  <Text>Status: {o.status}</Text>
+                  <Text>Total: ${o.totalPrice?.toFixed(2)}</Text>
+                  <Text>Date: {new Date(o.createdAt).toLocaleString()}</Text>
+
+                  <View style={{ flexDirection: "row", marginTop: 5 }}>
+                    {["PENDING", "PROCESSING", "COMPLETED", "CANCELLED"].map((s) => (
+                      <TouchableOpacity
+                        key={s}
+                        onPress={() => handleUpdateOrderStatus(o.id, s)}
+                      >
+                        <Text
+                          style={[
+                            styles.statusBtn,
+                            {
+                              backgroundColor:
+                                s === o.status ? "#0d6efd" : "#e9ecef",
+                            },
+                          ]}
+                        >
+                          {s}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </TouchableOpacity>
+              ))
+            )}
+          </View>
+        ) : null}
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-const webScrollFix = Platform.OS === "web" ? { overflowY: "auto", WebkitOverflowScrolling: "touch" } : {};
+const webScrollFix =
+  Platform.OS === "web"
+    ? { overflowY: "auto", WebkitOverflowScrolling: "touch" }
+    : {};
 
 const styles = StyleSheet.create({
   topBar: {
@@ -397,13 +501,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   topBarTitle: { color: "#fff", fontSize: 18, fontWeight: "bold" },
-
-  tabsRow: {
-    flexDirection: "row",
-    backgroundColor: "#e9ecef",
-    padding: 6,
-    gap: 8,
-  },
+  tabsRow: { flexDirection: "row", backgroundColor: "#e9ecef", padding: 6, gap: 8 },
   tabBtn: {
     flex: 1,
     backgroundColor: "#f8f9fa",
@@ -413,32 +511,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#dee2e6",
   },
-  tabBtnActive: {
-    backgroundColor: "#fff",
-    borderColor: "#0d6efd",
-  },
-  tabText: {
-    color: "#495057",
-    fontWeight: "600",
-  },
-  tabTextActive: {
-    color: "#0d6efd",
-  },
-
-  pageScroll: {
-    flex: 1,
-    backgroundColor: "#fff",
-    ...webScrollFix, // ✅ scrollbar on web
-  },
-  pageContainer: {
-    padding: 16,
-    gap: 10,
-  },
-
+  tabBtnActive: { backgroundColor: "#fff", borderColor: "#0d6efd" },
+  tabText: { color: "#495057", fontWeight: "600" },
+  tabTextActive: { color: "#0d6efd" },
+  pageScroll: { flex: 1, backgroundColor: "#fff", ...webScrollFix },
+  pageContainer: { padding: 16, gap: 10 },
   loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
   sectionTitle: { marginTop: 6, fontWeight: "bold", fontSize: 20, color: "#333" },
   subTitle: { marginTop: 10, fontSize: 16, fontWeight: "600" },
-
   input: {
     borderWidth: 1,
     borderColor: "#ccc",
@@ -446,19 +526,35 @@ const styles = StyleSheet.create({
     padding: 10,
     marginVertical: 6,
   },
-
+  homeBtn: {
+    backgroundColor: "#198754",
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 6,
+  },
+  homeBtnText: {
+    color: "#fff",
+    fontWeight: "600",
+  },
+  logoutBtn: {
+    backgroundColor: "#d9534f",
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 6,
+  },
+  logoutBtnText: {
+    color: "#fff",
+    fontWeight: "600",
+  },
   listBox: {
     maxHeight: 320,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: "#ddd",
     backgroundColor: "#fafafa",
-    ...webScrollFix, // container can scroll if content overflows on web
+    ...webScrollFix,
   },
-  innerScroll: {
-    ...webScrollFix, // ensures inner list shows scrollbar on web
-  },
-
+  innerScroll: { ...webScrollFix },
   itemRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -480,5 +576,21 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignSelf: "center",
     backgroundColor: "#eee",
+  },
+  orderBox: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    padding: 10,
+    backgroundColor: "#f8f9fa",
+    marginBottom: 10,
+  },
+  statusBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    marginRight: 6,
+    color: "#000",
+    fontWeight: "600",
   },
 });

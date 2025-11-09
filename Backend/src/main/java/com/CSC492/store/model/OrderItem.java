@@ -1,5 +1,6 @@
 package com.CSC492.store.model;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 
@@ -11,7 +12,7 @@ public class OrderItem {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "product_id", nullable = false)
     private Product product;
 
@@ -19,12 +20,12 @@ public class OrderItem {
 
     private BigDecimal price;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_id", nullable = false)
+    @JsonBackReference
     private Order order;
 
-    public OrderItem() {
-    }
+    public OrderItem() {}
 
     public OrderItem(Product product, int quantity, BigDecimal price, Order order) {
         this.product = product;

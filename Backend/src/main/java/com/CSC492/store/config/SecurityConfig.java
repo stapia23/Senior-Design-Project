@@ -14,11 +14,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-
-import java.util.List;
 
 @EnableMethodSecurity(prePostEnabled = true)
 @Configuration
@@ -33,47 +28,59 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            .cors(cors -> cors.configurationSource(request -> {
+                var cfg = new org.springframework.web.cors.CorsConfiguration();
+                cfg.addAllowedOriginPattern("*");
+                cfg.addAllowedHeader("*");
+                cfg.addAllowedMethod("*");
+                cfg.setAllowCredentials(true);
+                return cfg;
+            }))
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                
+                // Public
                 .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/users/register").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
-                .requestMatchers("/api/upload/**").permitAll()
-                .requestMatchers("/api/users/me", "/api/users/delete").authenticated()
-                .requestMatchers(HttpMethod.POST, "/api/products/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/products/upload").permitAll()
+
+                // Strip
+                .requestMatchers("/api/payments/**").hasAnyRole("CUSTOMER", "ADMIN")
+
+                // Users
+                .requestMatchers("/api/users/me").authenticated()
+                .requestMatchers("/api/users/delete").authenticated()
+                
+                // Orders
+                .requestMatchers("/api/orders/my").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/orders/create").authenticated()
+                .requestMatchers("/api/orders/{id}").authenticated()
+                .requestMatchers("/api/orders/admin/**").hasRole("ADMIN")
+
+                // Wishlist
+                .requestMatchers("/api/wishlist/**").hasRole("CUSTOMER")
+
+                // Product management
+                .requestMatchers(HttpMethod.POST, "/api/products").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/products/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/products/**").hasRole("ADMIN")
+
+                // Admin
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
+
                 .anyRequest().authenticated()
             )
-
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
     @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(List.of(
-            "http://localhost:*",
-            "http://127.0.0.1:*",
-            "http://10.0.2.2:*",
-            "http://192.168.*:*"
-        ));
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("*"));
-        configuration.setAllowCredentials(true);
-
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
-        return source;
-    }
-
-    @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
-        return authConfig.getAuthenticationManager();
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+        return config.getAuthenticationManager();
     }
 
     @Bean

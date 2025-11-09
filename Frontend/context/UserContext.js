@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { login as apiLogin, register as apiRegister, getCurrentUserProfile } from "../services/api";
+import { API_URL } from "../services/api";
 
 export const UserContext = createContext();
 
@@ -9,25 +10,40 @@ export const UserProvider = ({ children }) => {
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Load saved user + token on startup
+  const safeJSON = (value) => {
+    try {
+      return value ? JSON.parse(value) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  // Load user/token on startup
   useEffect(() => {
     const loadUser = async () => {
       try {
-        const storedUser = await AsyncStorage.getItem("user");
-        const storedToken = await AsyncStorage.getItem("token");
+        let storedUser = await AsyncStorage.getItem("user");
+        let storedToken = await AsyncStorage.getItem("token");
 
-        if (
-          storedUser &&
-          storedUser !== "undefined" &&
-          storedToken &&
-          storedToken !== "undefined" &&
-          storedToken !== "null"
-        ) {
-          setUser(JSON.parse(storedUser));
-          setToken(storedToken);
-          await refreshUserProfile(storedToken); // Try to refresh profile
+        if (!storedToken && typeof window !== "undefined") {
+          storedToken = localStorage.getItem("token");
+          storedUser = localStorage.getItem("user");
+        }
+
+        if (storedUser && storedToken) {
+          const parsed = safeJSON(storedUser);
+
+          if (!parsed) {
+            await logout();
+          } else {
+            setUser(parsed);
+            setToken(storedToken);
+
+            // Refresh profile from backend
+            await refreshUserProfile(storedToken);
+          }
         } else {
-          await AsyncStorage.multiRemove(["user", "token"]);
+          await logout();
         }
       } catch (err) {
         console.log("Failed to load user:", err);
@@ -35,48 +51,70 @@ export const UserProvider = ({ children }) => {
         setLoading(false);
       }
     };
+
     loadUser();
   }, []);
 
-  // Refresh user profile (with auto-logout on expired/invalid token)
-  const refreshUserProfile = async (jwt = token) => {
-    if (!jwt || jwt === "null" || jwt === "undefined") return;
+  // Refresh profile
+  const refreshUserProfile = async (jwt) => {
+    if (!jwt) return;
 
     try {
       const profile = await getCurrentUserProfile(jwt);
-      if (profile) {
-        setUser(profile);
-        await AsyncStorage.setItem("user", JSON.stringify(profile));
+      setUser(profile);
+
+      // Sync both storages
+      await AsyncStorage.setItem("user", JSON.stringify(profile));
+      if (typeof window !== "undefined") {
+        localStorage.setItem("user", JSON.stringify(profile));
       }
     } catch (err) {
-      console.log("Failed to refresh profile:", err.message);
-      if (err.message.includes("403") || err.message.includes("401")) {
-        console.log("Token invalid or expired — logging out...");
-        await logout();
-      }
+      console.log("Token invalid → Logging out");
+      await logout();
     }
   };
 
   // Login
   const loginUser = async (email, password) => {
     const data = await apiLogin(email, password);
+
     setUser(data.user);
     setToken(data.token);
+
     await AsyncStorage.setItem("user", JSON.stringify(data.user));
     await AsyncStorage.setItem("token", data.token);
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem("user", JSON.stringify(data.user));
+      localStorage.setItem("token", data.token);
+    }
+
     return data;
   };
 
   // Register
-  const registerUser = async (userData) => {
-    return await apiRegister(userData);
+  const registerUser = async (user) => {
+    const res = await fetch(`${API_URL}/api/users/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(user),
+    });
+
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
   };
 
-  // Logout, clear everything
+  // Logout
   const logout = async () => {
     setUser(null);
     setToken(null);
+
     await AsyncStorage.multiRemove(["user", "token"]);
+
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("user");
+      localStorage.removeItem("token");
+    }
   };
 
   return (
@@ -86,6 +124,7 @@ export const UserProvider = ({ children }) => {
         token,
         loading,
         setUser,
+        setToken,
         loginUser,
         registerUser,
         logout,

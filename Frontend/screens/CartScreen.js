@@ -1,13 +1,14 @@
-import React, { useContext } from "react"; 
-import { View, Text, FlatList, Button, TextInput, Alert, Image, Platform } from "react-native";
+import React, { useContext } from "react";
+import { View, Text, FlatList, Button, TextInput, Alert, Image, Platform, TouchableOpacity, StyleSheet } from "react-native";
 import { useCart } from "../context/CartContext";
 import { UserContext } from "../context/UserContext";
+import { API_URL } from "../services/api";
 
 const confirmDialog = async (title, message, buttons) => {
   if (Platform.OS === "web") {
     if (window.confirm(`${title}\n\n${message}`)) {
-      const confirmAction = buttons?.find((b) => b.text?.toLowerCase() === "login" || b.text?.toLowerCase() === "ok");
-      confirmAction?.onPress?.();
+      const okBtn = buttons?.find(b => b.text?.toLowerCase() === "login" || b.text?.toLowerCase() === "ok");
+      okBtn?.onPress?.();
     }
   } else {
     Alert.alert(title, message, buttons);
@@ -16,39 +17,92 @@ const confirmDialog = async (title, message, buttons) => {
 
 export default function CartScreen({ navigation }) {
   const { cart, removeFromCart, updateQuantity, total, clearCart } = useCart();
-  const { user, token } = useContext(UserContext);
+  const { user, token, refreshUserProfile } = useContext(UserContext);
 
-  const handleCheckout = () => {
-    if (cart.length === 0) {
-      Alert.alert("Cart is empty", "Please add items before checking out.");
-      return;
-    }
-
-    if (!user || !token) {
-      confirmDialog(
-        "Login Required",
-        "You need to log in or create an account to proceed with checkout.",
-        [
+  const handleCheckout = async () => {
+    try {
+      if (!token) {
+        confirmDialog("Login Required", "Please log in to checkout.", [
           { text: "Cancel", style: "cancel" },
-          { text: "Login", onPress: () => navigation.navigate("Login", { redirect: "Cart" }) },
-        ]
-      );
-      return;
-    }
+          { text: "Login", onPress: () => navigation.navigate("Login") },
+        ]);
+        return;
+      }
 
-    confirmDialog(
-      "Checkout",
-      `Total: $${total.toFixed(2)}\nProceed with checkout? (Feature coming soon)`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "OK", onPress: () => console.log("Checkout confirmed") },
-      ]
-    );
+      await refreshUserProfile(token);
+
+      if (!user) {
+        Alert.alert("Session Expired", "Please log in again.");
+        navigation.navigate("Login");
+        return;
+      }
+
+      if (cart.length === 0) {
+        Alert.alert("Cart Empty", "Add items to your cart first.");
+        return;
+      }
+
+      const body = {
+        items: cart.map(item => ({
+          productId: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+        })),
+      };
+
+      console.log("Checkout → API URL:", `${API_URL}/api/payments/create-checkout-session`);
+      console.log("Sending token:", token);
+
+      const res = await fetch(`${API_URL}/api/payments/create-checkout-session`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) throw new Error(await res.text());
+
+      const data = await res.json();
+      const url = data.url;
+
+      if (!url) throw new Error("Stripe did not return a checkout URL");
+
+      // WEB → Redirect
+      if (Platform.OS === "web") {
+        window.location.href = url;
+        return;
+      }
+
+      // MOBILE → Show popup with URL
+      Alert.alert("Stripe Checkout", "Open this link to complete payment:\n\n" + url);
+
+    } catch (err) {
+      console.error("Checkout error:", err);
+      Alert.alert("Checkout Error", err.message || "Something went wrong.");
+    }
   };
 
   return (
-    <View style={{ flex: 1, padding: 10 }}>
-      <Text style={{ fontSize: 20, fontWeight: "bold", marginBottom: 10 }}>Your Cart</Text>
+    <View style={{ flex: 1 }}>
+      <View style={styles.topBar}>
+        <Text style={styles.topBarTitle}>Cart</Text>
+
+        <View style={{ flexDirection: "row", gap: 10 }}>
+          <TouchableOpacity
+            style={styles.homeBtn}
+            onPress={() => navigation.navigate("Home")}
+          >
+            <Text style={styles.homeBtnText}>Home</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <Text style={{ fontSize: 20, fontWeight: "bold", marginBottom: 10 }}>
+        Your Cart
+      </Text>
 
       {cart.length === 0 ? (
         <Text>No items in cart.</Text>
@@ -72,7 +126,12 @@ export default function CartScreen({ navigation }) {
                 {item.imageUrl ? (
                   <Image
                     source={{ uri: item.imageUrl }}
-                    style={{ width: 60, height: 60, marginRight: 10, borderRadius: 5 }}
+                    style={{
+                      width: 60,
+                      height: 60,
+                      marginRight: 10,
+                      borderRadius: 5,
+                    }}
                   />
                 ) : (
                   <View
@@ -94,9 +153,12 @@ export default function CartScreen({ navigation }) {
                   <Text style={{ fontWeight: "bold" }}>{item.name}</Text>
                   <Text>Price: ${item.price}</Text>
                   <Text>Quantity:</Text>
+
                   <TextInput
                     value={item.quantity.toString()}
-                    onChangeText={(val) => updateQuantity(item.id, parseInt(val) || 1)}
+                    onChangeText={(val) =>
+                      updateQuantity(item.id, parseInt(val) || 1)
+                    }
                     keyboardType="numeric"
                     style={{
                       borderWidth: 1,
@@ -107,24 +169,23 @@ export default function CartScreen({ navigation }) {
                       marginBottom: 5,
                     }}
                   />
+
                   <Button title="Remove" onPress={() => removeFromCart(item.id)} />
                 </View>
               </View>
             )}
           />
+
           <Text style={{ fontSize: 18, fontWeight: "bold", marginTop: 10 }}>
             Total: ${total.toFixed(2)}
           </Text>
+
           <View style={{ marginTop: 15 }}>
-            {user && token ? (
-              <Button title="Proceed to Checkout" onPress={handleCheckout} />
-            ) : (
-              <Button
-                title="Login to Checkout"
-                color="#007BFF"
-                onPress={() => navigation.navigate("Login", { redirect: "Cart" })}
-              />
-            )}
+            <Button
+              title="Proceed to Checkout"
+              onPress={handleCheckout}
+              disabled={!user || !token}
+            />
             <View style={{ marginVertical: 5 }} />
             <Button title="Clear Cart" onPress={clearCart} color="red" />
           </View>
@@ -133,3 +194,31 @@ export default function CartScreen({ navigation }) {
     </View>
   );
 }
+const styles = StyleSheet.create({
+  topBar: {
+    backgroundColor: "#0d6efd",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  topBarTitle: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+
+  homeBtn: {
+    backgroundColor: "#198754",
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 6,
+  },
+
+  homeBtnText: {
+    color: "#fff",
+    fontWeight: "600",
+  },
+});
