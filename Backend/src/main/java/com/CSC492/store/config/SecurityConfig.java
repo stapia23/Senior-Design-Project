@@ -63,6 +63,11 @@ public class SecurityConfig {
                 // Wishlist
                 .requestMatchers("/api/wishlist/**").hasRole("CUSTOMER")
 
+                // Reviews
+                .requestMatchers(HttpMethod.POST, "/api/reviews/**").hasRole("CUSTOMER")
+                .requestMatchers(HttpMethod.GET, "/api/reviews/**").permitAll()
+                .requestMatchers(HttpMethod.DELETE, "/api/reviews/**").hasRole("ADMIN")
+
                 // Product management
                 .requestMatchers(HttpMethod.POST, "/api/products").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/products/**").hasRole("ADMIN")

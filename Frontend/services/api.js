@@ -270,3 +270,48 @@ export async function getWishlist(token=null) {
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
+
+export async function getReviews(productId) {
+  const res = await fetch(`${API_URL}/api/reviews/${productId}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function addReview(productId, rating, comment, token) {
+  const res = await fetch(`${API_URL}/api/reviews/${productId}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ rating, comment }),
+  });
+
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export const deleteReview = async (id, token) => {
+  console.log("API: Sending DELETE", `${API_URL}/api/reviews/${id}`);
+
+  const res = await fetch(`${API_URL}/api/reviews/${id}`, {
+    method: "DELETE",
+    headers: {
+      "Accept": "application/json",
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+    },
+  }).catch(err => {
+    console.log("FETCH ERROR:", err);
+    throw err;
+  });
+
+  console.log("Delete response status:", res.status);
+
+  if (!res.ok) {
+    const message = await res.text();
+    throw new Error(message || "Failed to delete");
+  }
+
+  return true;
+};

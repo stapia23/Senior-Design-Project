@@ -1,30 +1,9 @@
 import React, { useEffect, useState, useContext } from "react";
-import {
-  View,
-  Text,
-  Button,
-  TextInput,
-  Alert,
-  ScrollView,
-  Image,
-  ActivityIndicator,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  TouchableOpacity,
-} from "react-native";
+import { View, Text, Button, TextInput, Alert, ScrollView, Image, ActivityIndicator, StyleSheet, KeyboardAvoidingView, Platform, TouchableOpacity } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { Picker } from "@react-native-picker/picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import {
-  getAdmins,
-  createAdmin,
-  createProduct,
-  getProducts,
-  deleteProduct,
-  deleteAdmin,
-  uploadImage,
-} from "../services/api";
+import { getAdmins, createAdmin, createProduct, getProducts, deleteProduct, deleteAdmin, uploadImage } from "../services/api";
 import { UserContext } from "../context/UserContext";
 
 const API_URL = "http://localhost:8080";

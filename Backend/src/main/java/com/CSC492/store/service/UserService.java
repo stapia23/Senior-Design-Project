@@ -21,7 +21,6 @@ public class UserService {
 
     // Create or update a user
     public User save(User user) {
-        // Only encode password if it's not already encoded
         if (!user.getPassword().startsWith("$2a$")) {
             user.setPassword(passwordEncoder.encode(user.getPassword()));
         }

@@ -5,20 +5,23 @@ import com.CSC492.store.model.User;
 import com.CSC492.store.security.JwtUtil;
 import com.CSC492.store.service.UserService;
 import com.CSC492.store.service.WishlistService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/wishlist")
-@RequiredArgsConstructor
 public class WishlistController {
 
     private final WishlistService wishlistService;
     private final UserService userService;
     private final JwtUtil jwtUtil;
 
+    public WishlistController(WishlistService wishlistService, UserService userService, JwtUtil jwtUtil) {
+        this.wishlistService = wishlistService;
+        this.userService = userService;
+        this.jwtUtil = jwtUtil;
+    }
     private User getUserFromToken(String header) {
         String token = header.replace("Bearer ", "").trim();
         String email = jwtUtil.extractEmail(token.replace("Bearer ", "").trim());
