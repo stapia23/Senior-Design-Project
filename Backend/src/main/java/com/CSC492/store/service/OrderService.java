@@ -27,9 +27,7 @@ public class OrderService {
     private final ProductRepository productRepository;
 
     @Autowired
-    public OrderService(OrderRepository orderRepository,
-                        OrderItemRepository orderItemRepository,
-                        ProductRepository productRepository) {
+    public OrderService(OrderRepository orderRepository, OrderItemRepository orderItemRepository, ProductRepository productRepository) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.productRepository = productRepository;
@@ -47,12 +45,13 @@ public class OrderService {
 
     // Create order from Stripe checkout success
     @Transactional
-    public Order createOrderFromItems(User user,
-                                      List<CheckoutItemDTO> items,
-                                      Order.Status initialStatus) throws Exception {
-
-        if (user == null) throw new Exception("User required");
-        if (items == null || items.isEmpty()) throw new Exception("Items required");
+    public Order createOrderFromItems(User user, List<CheckoutItemDTO> items, Order.Status initialStatus) throws Exception {
+        if (user == null) {
+            throw new Exception("User required");
+        }
+        if (items == null || items.isEmpty()) {
+            throw new Exception("Items required");
+        }
 
         Order order = new Order();
         order.setUser(user);
@@ -61,23 +60,28 @@ public class OrderService {
 
         for (CheckoutItemDTO dto : items) {
 
-            Product product = productRepository.findById(dto.getProductId())
-                    .orElseThrow(() -> new Exception("Product not found: " + dto.getProductId()));
-
+            Product product = productRepository.findById(dto.getProductId()).orElseThrow(() -> new Exception("Product not found: " + dto.getProductId()));
             OrderItem oi = new OrderItem();
             oi.setOrder(order);
             oi.setProduct(product);
 
-            oi.setQuantity(dto.getQuantity() > 0 ? dto.getQuantity() : 1);
+            int quantity = dto.getQuantity();
+            if (quantity > 0) {
+                oi.setQuantity(quantity);
+            } else {
+                oi.setQuantity(1);
+            }
 
-            BigDecimal finalPrice =
-                    dto.getPrice() != null ? dto.getPrice() : product.getPrice();
-
+            BigDecimal finalPrice;
+            if (dto.getPrice() != null) {
+                finalPrice = dto.getPrice();
+            } else {
+                finalPrice = product.getPrice();
+            }
+            
             oi.setPrice(finalPrice);
-
             order.getOrderItems().add(oi);
         }
-
         order.calculateTotalPrice();
         return orderRepository.save(order);
     }
@@ -109,8 +113,7 @@ public class OrderService {
     // order status
     @Transactional
     public Order updateStatus(Long orderId, Order.Status status) throws Exception {
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new Exception("Order not found"));
+        Order order = orderRepository.findById(orderId).orElseThrow(() -> new Exception("Order not found"));
         order.setStatus(status);
         return orderRepository.save(order);
     }

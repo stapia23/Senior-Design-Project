@@ -1,7 +1,18 @@
 import React, { useEffect, useState, useContext } from "react";
-import {View,Text,FlatList,Image,TouchableOpacity,TextInput,Alert,ActivityIndicator,Platform,useWindowDimensions} from "react-native";
+import {
+  View,
+  Text,
+  FlatList,
+  Image,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+  ActivityIndicator,
+  Platform,
+  useWindowDimensions,
+} from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getProducts, getProductsByCategory } from "../services/api";
+import { getProducts } from "../services/api";
 import { useCart } from "../context/CartContext";
 import { UserContext } from "../context/UserContext";
 
@@ -10,17 +21,34 @@ export default function HomeScreen({ navigation }) {
   const { cart, addToCart, setCart } = useCart();
 
   const [products, setProducts] = useState([]);
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [sortBy, setSortBy] = useState("id");  // "id" or "price" or "newest"
+  const [sortDir, setSortDir] = useState("asc"); // "asc" or "desc"
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
+  const [inStockOnly, setInStockOnly] = useState(false);
+
+  const [minPriceInput, setMinPriceInput] = useState("");
+  const [maxPriceInput, setMaxPriceInput] = useState("");
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const { width } = useWindowDimensions();
   const numColumns = 4;
-  const cardMargin = 10;
+  const cardMargin = 5;
   const cardWidth = (width - cardMargin * 3) / numColumns;
 
-  const categories = ["Clothing","Electronics","Shoes","Watches","Jewellery","Beauty"];
+  const categories = [
+    "Clothing",
+    "Electronics",
+    "Shoes",
+    "Watches",
+    "Jewellery",
+    "Beauty",
+  ];
 
   // Load cart on mount
   useEffect(() => {
@@ -41,20 +69,30 @@ export default function HomeScreen({ navigation }) {
     );
   }, [cart]);
 
-  // Fetch products
+  // Fetch products whenever filters/sort/search change
   useEffect(() => {
     const fetchProductsData = async () => {
       try {
         setLoading(true);
         setError("");
-        const data = selectedCategory
-          ? await getProductsByCategory(selectedCategory, token)
-          : await getProducts(token);
+
+        const data = await getProducts(
+          token,
+          search,                        // search keyword
+          selectedCategory || "",        // category
+          sortBy,                        // sort field
+          sortDir,                       // sort direction
+          minPrice,                      // min price
+          maxPrice,                      // max price
+          inStockOnly ? "true" : ""      // inStock filter
+        );
+
         const list = Array.isArray(data)
           ? data
           : data?.content
           ? data.content
           : [];
+
         setProducts(list);
       } catch (err) {
         console.error("Product fetch error:", err);
@@ -64,16 +102,13 @@ export default function HomeScreen({ navigation }) {
         setLoading(false);
       }
     };
-    fetchProductsData();
-  }, [selectedCategory, token]);
 
-  const filteredProducts = products.filter((p) =>
-    p.name?.toLowerCase().includes(search.toLowerCase())
-  );
+    fetchProductsData();
+  }, [token, search, selectedCategory, sortBy, sortDir, minPrice, maxPrice, inStockOnly]);
 
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  // Let browser body manage scroll
+  // Let browser body manage scroll on web
   const containerStyle = {
     flex: 1,
     backgroundColor: "#f6f6f6",
@@ -85,6 +120,17 @@ export default function HomeScreen({ navigation }) {
           display: "block",
         }
       : {}),
+  };
+
+  const handleClearFilters = () => {
+    setSearch("");
+    setSearchInput("");
+    setSelectedCategory("");
+    setSortBy("id");
+    setSortDir("asc");
+    setMinPrice("");
+    setMaxPrice("");
+    setInStockOnly(false);
   };
 
   return (
@@ -141,7 +187,7 @@ export default function HomeScreen({ navigation }) {
         </View>
       ) : (
         <FlatList
-          data={filteredProducts}
+          data={products}
           keyExtractor={(item) => item.id.toString()}
           numColumns={numColumns}
           contentContainerStyle={{
@@ -162,11 +208,14 @@ export default function HomeScreen({ navigation }) {
               >
                 <TextInput
                   placeholder="Search products..."
-                  value={search}
-                  onChangeText={setSearch}
+                  value={searchInput}
+                  onChangeText={setSearchInput}
                   style={{ flex: 1, padding: 10 }}
                 />
-                <TouchableOpacity style={{ padding: 10 }}>
+                <TouchableOpacity
+                  style={{ padding: 10 }}
+                  onPress={() => setSearch(searchInput.trim())}
+                >
                   <Text style={{ color: "#007bff", fontWeight: "bold" }}>
                     Search
                   </Text>
@@ -187,7 +236,9 @@ export default function HomeScreen({ navigation }) {
                   <TouchableOpacity
                     key={cat}
                     onPress={() =>
-                      setSelectedCategory(selectedCategory === cat ? null : cat)
+                      setSelectedCategory(
+                        selectedCategory === cat ? "" : cat
+                      )
                     }
                     style={{
                       backgroundColor:
@@ -210,6 +261,196 @@ export default function HomeScreen({ navigation }) {
                 ))}
               </View>
 
+              {/* FILTERS ROW: PRICE + IN STOCK */}
+              <View
+                style={{
+                  backgroundColor: "#fff",
+                  paddingHorizontal: 10,
+                  paddingVertical: 8,
+                  flexDirection: "row",
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                {/* Price range */}
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <Text style={{ marginRight: 4 }}>Price:</Text>
+                  <TextInput
+                    placeholder="Min"
+                    value={minPriceInput}
+                    onChangeText={setMinPriceInput}
+                    keyboardType="numeric"
+                    onSubmitEditing={() => setMinPrice(minPriceInput)}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: "#ccc",
+                      borderRadius: 6,
+                      paddingHorizontal: 6,
+                      paddingVertical: 4,
+                      width: 60,
+                      marginRight: 4,
+                    }}
+                  />
+                  <Text> - </Text>
+                  <TextInput
+                    placeholder="Max"
+                    value={maxPriceInput}
+                    onChangeText={setMaxPriceInput}
+                    keyboardType="numeric"
+                    onSubmitEditing={() => setMaxPrice(maxPriceInput)}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: "#ccc",
+                      borderRadius: 6,
+                      paddingHorizontal: 6,
+                      paddingVertical: 4,
+                      width: 60,
+                      marginLeft: 4,
+                    }}
+                  />
+                </View>
+
+                {/* In-stock toggle */}
+                <TouchableOpacity
+                  onPress={() => setInStockOnly((prev) => !prev)}
+                  style={{
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 20,
+                    borderWidth: 1,
+                    borderColor: inStockOnly ? "#28a745" : "#ccc",
+                    backgroundColor: inStockOnly ? "#d4edda" : "#f8f9fa",
+                    marginTop: 6,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: inStockOnly ? "#155724" : "#333",
+                      fontSize: 13,
+                    }}
+                  >
+                    {inStockOnly ? "In Stock Only ✓" : "In Stock Only"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* SORT ROW */}
+              <View
+                style={{
+                  backgroundColor: "#fff",
+                  paddingHorizontal: 10,
+                  paddingVertical: 8,
+                  flexDirection: "row",
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <Text style={{ fontWeight: "600", marginRight: 8 }}>Sort:</Text>
+
+                <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setSortBy("newest");
+                      setSortDir("asc");
+                    }}
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 6,
+                      borderRadius: 16,
+                      marginRight: 6,
+                      marginBottom: 4,
+                      backgroundColor:
+                        sortBy === "newest" ? "#007bff" : "#f2f2f2",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: sortBy === "newest" ? "#fff" : "#000",
+                        fontSize: 13,
+                      }}
+                    >
+                      Newest
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={() => {
+                      setSortBy("price");
+                      setSortDir("asc");
+                    }}
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 6,
+                      borderRadius: 16,
+                      marginRight: 6,
+                      marginBottom: 4,
+                      backgroundColor:
+                        sortBy === "price" && sortDir === "asc"
+                          ? "#007bff"
+                          : "#f2f2f2",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color:
+                          sortBy === "price" && sortDir === "asc"
+                            ? "#fff"
+                            : "#000",
+                        fontSize: 13,
+                      }}
+                    >
+                      Price Low-High
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={() => {
+                      setSortBy("price");
+                      setSortDir("desc");
+                    }}
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 6,
+                      borderRadius: 16,
+                      marginRight: 6,
+                      marginBottom: 4,
+                      backgroundColor:
+                        sortBy === "price" && sortDir === "desc"
+                          ? "#007bff"
+                          : "#f2f2f2",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color:
+                          sortBy === "price" && sortDir === "desc"
+                            ? "#fff"
+                            : "#000",
+                        fontSize: 13,
+                      }}
+                    >
+                      Price High-Low
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Clear filters */}
+                <TouchableOpacity
+                  onPress={handleClearFilters}
+                  style={{
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    borderRadius: 16,
+                    backgroundColor: "#e9ecef",
+                    marginTop: 4,
+                  }}
+                >
+                  <Text style={{ fontSize: 13 }}>Clear Filters</Text>
+                </TouchableOpacity>
+              </View>
+
               <Text
                 style={{
                   fontSize: 18,
@@ -220,7 +461,7 @@ export default function HomeScreen({ navigation }) {
               >
                 {selectedCategory
                   ? `${selectedCategory} Products`
-                  : "New Products"}
+                  : "Products"}
               </Text>
             </>
           }

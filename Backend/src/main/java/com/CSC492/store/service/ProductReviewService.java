@@ -21,16 +21,12 @@ public class ProductReviewService {
     }
 
     public List<ProductReview> getReviews(Long productId) {
-        Product product = productRepo.findById(productId)
-                .orElseThrow(() -> new RuntimeException("Product not found"));
-
+        Product product = productRepo.findById(productId).orElseThrow(() -> new RuntimeException("Product not found"));
         return reviewRepo.findByProduct(product);
     }
 
     public ProductReview addReview(Long productId, int rating, String comment, User user) {
-        Product product = productRepo.findById(productId)
-                .orElseThrow(() -> new RuntimeException("Product not found"));
-
+        Product product = productRepo.findById(productId).orElseThrow(() -> new RuntimeException("Product not found"));
         ProductReview review = new ProductReview(rating, comment, product, user);
         return reviewRepo.save(review);
     }
@@ -38,5 +34,4 @@ public class ProductReviewService {
     public void deleteReview(Long reviewId) {
         reviewRepo.deleteById(reviewId);
     }
-
 }

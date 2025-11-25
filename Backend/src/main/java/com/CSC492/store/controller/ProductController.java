@@ -4,6 +4,7 @@ import com.CSC492.store.model.Product;
 import com.CSC492.store.model.User;
 import com.CSC492.store.service.ProductService;
 import com.CSC492.store.service.UserService;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +15,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -33,8 +35,7 @@ public class ProductController {
     // Create product (Admin only)
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
-    public ResponseEntity<?> createProduct(@RequestBody Product product,
-                                           @AuthenticationPrincipal User user) {
+    public ResponseEntity<?> createProduct(@RequestBody Product product, @AuthenticationPrincipal User user) {
         return ResponseEntity.ok(productService.createProduct(product));
     }
 
@@ -46,18 +47,21 @@ public class ProductController {
         return product.map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
     }
 
-    // Get all products
+    // Get all products with sorting, filtering, and search
     @GetMapping
     @PreAuthorize("permitAll()")
     public ResponseEntity<?> getProducts(
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice,
+            @RequestParam(required = false) Boolean inStock,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "100") int size,
             @RequestParam(defaultValue = "id") String sortBy,
             @RequestParam(defaultValue = "asc") String sortDir
     ) {
-        Page<Product> products = productService.getProducts(category, search, page, size, sortBy, sortDir);
+        Page<Product> products = productService.getProducts(category, search, minPrice, maxPrice, inStock, page, size, sortBy, sortDir);
         return ResponseEntity.ok(products);
     }
 
@@ -70,9 +74,7 @@ public class ProductController {
     // Update product (Admin only)
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
-    public ResponseEntity<?> updateProduct(@PathVariable Long id,
-                                           @RequestBody Product product,
-                                           @AuthenticationPrincipal User user) {
+    public ResponseEntity<?> updateProduct(@PathVariable Long id, @RequestBody Product product, @AuthenticationPrincipal User user) {
         product.setId(id);
         return ResponseEntity.ok(productService.updateProduct(product));
     }
@@ -80,8 +82,7 @@ public class ProductController {
     // Delete product (Admin only)
     @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteProduct(@PathVariable Long id,
-                                           @AuthenticationPrincipal User user) {
+    public ResponseEntity<?> deleteProduct(@PathVariable Long id, @AuthenticationPrincipal User user) {
         productService.deleteProduct(id);
         return ResponseEntity.ok("Deleted successfully");
     }

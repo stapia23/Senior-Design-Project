@@ -1,7 +1,6 @@
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// PLATFORM API URL HANDLING
 export const API_URL =
   Platform.OS === "android"
     ? "http://10.0.2.2:8080" // Android
@@ -31,7 +30,9 @@ async function getFetchOptions(method, body = null, needsAuth = true, token = nu
   };
 
   if (needsAuth) {
-    if (!token) token = await AsyncStorage.getItem("token");
+    if (!token){
+      token = await AsyncStorage.getItem("token");
+    }
 
     if (token && token !== "null" && token !== "undefined") {
       headers["Authorization"] = `Bearer ${token}`;
@@ -39,11 +40,13 @@ async function getFetchOptions(method, body = null, needsAuth = true, token = nu
   }
 
   const opts = { method, headers };
-  if (body) opts.body = JSON.stringify(body);
+  if (body) {
+    opts.body = JSON.stringify(body);
+  }
   return opts;
 }
 
-// AUTH
+// Auth fuctions for login and register
 export const login = async (email, password) => {
   const res = await fetchWithTimeout(`${API_URL}/api/auth/login`, {
     method: "POST",
@@ -51,7 +54,9 @@ export const login = async (email, password) => {
     body: JSON.stringify({ email, password }),
   });
 
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    throw new Error(await res.text());
+  }
   const data = await res.json();
 
   const user = data.user || {
@@ -73,17 +78,21 @@ export async function register(user) {
     await getFetchOptions("POST", user, false)
   );
 
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    throw new Error(await res.text());
+  }
   return res.json();
 }
 
-// PRODUCTS
+// Product functions
 export async function createProduct(product, token = null) {
   const res = await fetchWithTimeout(
     `${API_URL}/api/products`,
     await getFetchOptions("POST", product, true, token)
   );
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    throw new Error(await res.text());
+  }
   return res.json();
 }
 
@@ -92,50 +101,55 @@ export async function deleteProduct(productId, token = null) {
     `${API_URL}/api/products/${productId}`,
     await getFetchOptions("DELETE", null, true, token)
   );
-  if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+  }
   return res.text();
 }
 
-export async function getProducts(token = null, category = null, page = 0, size = 1000) {
+export async function getProducts( token = null, search = "", category = "", sortBy = "id", sortDir = "asc", minPrice = "", maxPrice = "", inStock = "" ) {
   try {
-    let url = `${API_URL}/api/products?page=${page}&size=${size}`;
-    if (category) url += `&category=${encodeURIComponent(category)}`;
+    let url = `${API_URL}/api/products?sortBy=${sortBy}&sortDir=${sortDir}`;
 
-    const headers = { "Content-Type": "application/json", Accept: "application/json" };
-    if (token && token !== "null" && token !== "undefined")
-      headers["Authorization"] = `Bearer ${token}`;
-
-    const res = await fetchWithTimeout(url, { method: "GET", headers });
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-
-    const data = await res.json();
-
-    if (data.content) {
-      let products = [...data.content];
-      const totalPages = data.totalPages || 1;
-
-      for (let i = 1; i < totalPages; i++) {
-        const nextRes = await fetchWithTimeout(
-          `${API_URL}/api/products?page=${i}&size=${size}`,
-          { method: "GET", headers }
-        );
-        if (nextRes.ok) {
-          const more = await nextRes.json();
-          if (more.content) products = [...products, ...more.content];
-        }
-      }
-
-      return products;
+    if (search) { 
+      url += `&search=${encodeURIComponent(search)}`;
+    }
+    if (category) {
+      url += `&category=${encodeURIComponent(category)}`;
+    }
+    if (minPrice !== "") {
+      url += `&minPrice=${minPrice}`;
+    }
+    if (maxPrice !== "") {
+      url += `&maxPrice=${maxPrice}`;
+    }
+    if (inStock !== "") {
+      url += `&inStock=${inStock}`;
     }
 
-    return Array.isArray(data) ? data : [];
+    const headers = {
+      "Content-Type": "application/json",
+      Accept: "application/json"
+    };
+
+    if (token && token !== "null" && token !== "undefined") {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const res = await fetchWithTimeout(url, { method: "GET", headers });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+    }
+
+    const data = await res.json();
+    return data.content ?? [];
   } catch (err) {
     console.error("getProducts error:", err);
     throw err;
   }
 }
 
-// products by category
+// Products by category
 export async function getProductsByCategory(category, token = null) {
   const headers = {
     "Content-Type": "application/json",
@@ -151,20 +165,24 @@ export async function getProductsByCategory(category, token = null) {
     { method: "GET", headers }
   );
 
-  if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+  }
 
   return await res.json();
 }
 
 
-// ADMIN USERS
+// Admin functions
 export async function getAdmins(token = null) {
   const res = await fetchWithTimeout(
     `${API_URL}/api/admin/users`,
     await getFetchOptions("GET", null, true, token)
   );
 
-  if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+  }
   const users = await res.json();
   return users.filter((u) => u.role === "ADMIN");
 }
@@ -174,7 +192,9 @@ export async function createAdmin(admin, token = null) {
     `${API_URL}/api/admin/admins`,
     await getFetchOptions("POST", { ...admin, role: "ADMIN" }, true, token)
   );
-  if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+  }
   return res.json();
 }
 
@@ -184,18 +204,22 @@ export async function deleteAdmin(userId, token = null) {
     await getFetchOptions("DELETE", null, true, token)
   );
 
-  if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+  }
   return res.text();
 }
 
-// USER PROFILE
+// User profile
 export async function getCurrentUserProfile(token = null) {
   const res = await fetchWithTimeout(
     `${API_URL}/api/users/me`,
     await getFetchOptions("GET", null, true, token)
   );
 
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    throw new Error(await res.text());
+  }
   return res.json();
 }
 
@@ -205,14 +229,18 @@ export async function deleteMyAccount(token = null) {
     await getFetchOptions("DELETE", null, true, token)
   );
 
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    throw new Error(await res.text());
+  }
   return res.text();
 }
 
-// IMAGE UPLOAD
+// Image upload
 export async function uploadImage(formData, token = null) {
   const headers = {};
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
 
   const res = await fetchWithTimeout(`${API_URL}/api/upload`, {
     method: "POST",
@@ -220,21 +248,25 @@ export async function uploadImage(formData, token = null) {
     body: formData,
   });
 
-  if (!res.ok) throw new Error(`Upload failed: ${await res.text()}`);
+  if (!res.ok) {
+    throw new Error(`Upload failed: ${await res.text()}`);
+  }
   return res.text();
 }
 
-// STRIPE CHECKOUT
+// Stripe checkout process
 export async function createCheckoutSession(cartItems, token = null) {
-  console.log("➡️ Stripe Checkout → Payload:", cartItems);
-  console.log("➡️ API:", `${API_URL}/api/payments/create-checkout-session`);
+  console.log("Stripe Checkout → Payload:", cartItems);
+  console.log("API:", `${API_URL}/api/payments/create-checkout-session`);
 
   const res = await fetchWithTimeout(
     `${API_URL}/api/payments/create-checkout-session`,
     await getFetchOptions("POST", { items: cartItems }, true, token)
   );
 
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    throw new Error(await res.text());
+  }
   return res.json();
 }
 
@@ -245,7 +277,9 @@ export async function addToWishlist(productId, token=null) {
     method: "POST",
     headers,
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    throw new Error(await res.text());
+  }
   return res.json();
 }
 
@@ -255,7 +289,9 @@ export async function removeFromWishlist(productId, token=null) {
     method: "DELETE",
     headers,
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    throw new Error(await res.text());
+  }
   return true;
 }
 
@@ -267,13 +303,18 @@ export async function getWishlist(token=null) {
   };
 
   const res = await fetch(`${API_URL}/api/wishlist`, { headers });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    throw new Error(await res.text());
+  }
   return res.json();
 }
 
+// Review functions
 export async function getReviews(productId) {
   const res = await fetch(`${API_URL}/api/reviews/${productId}`);
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    throw new Error(await res.text());
+  }
   return res.json();
 }
 
@@ -287,7 +328,9 @@ export async function addReview(productId, rating, comment, token) {
     body: JSON.stringify({ rating, comment }),
   });
 
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    throw new Error(await res.text());
+  }
   return res.json();
 }
 
