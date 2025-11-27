@@ -5,7 +5,7 @@ import java.util.*;
 public class ProductAlgorithms {
     // Merge sort for sorting by price, and newest
     // using the divide and conquer approach by splitting the list into two halves
-    // and resursively sorting each half and then merging the two sorted halves into one sorted list
+    // and recursively sorting each half and then merging the two sorted halves into one sorted list
     // the recursion the method calls itself to sort smaller and smaller portions.
     // Why we used this because it provides stable sorting 
     // Time complexity: O(n log n)

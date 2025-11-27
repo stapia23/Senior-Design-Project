@@ -1,16 +1,5 @@
 import React, { useEffect, useState, useContext } from "react";
-import {
-  View,
-  Text,
-  FlatList,
-  Image,
-  TouchableOpacity,
-  TextInput,
-  Alert,
-  ActivityIndicator,
-  Platform,
-  useWindowDimensions,
-} from "react-native";
+import { View, Text, FlatList, Image, TouchableOpacity, TextInput, Alert, ActivityIndicator, Platform, useWindowDimensions } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getProducts } from "../services/api";
 import { useCart } from "../context/CartContext";
