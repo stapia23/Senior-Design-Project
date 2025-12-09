@@ -3,7 +3,7 @@ import { View, Text, Image, ScrollView, TouchableOpacity, Alert, TextInput, Acti
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCart } from "../context/CartContext";
 import { UserContext } from "../context/UserContext";
-import { addToWishlist, getReviews, addReview, deleteReview } from "../services/api";
+import { addToWishlist, getReviews, addReview, deleteReview, getProducts, getTopRatedProducts, getPersonalRecommendations } from "../services/api";
 
 const confirmDialog = async (title, message) => {
   if (Platform.OS === "web") {
@@ -30,9 +30,21 @@ export default function ProductDetailsScreen({ route, navigation }) {
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Similar products
+  const [similarProducts, setSimilarProducts] = useState([]);
+  const [loadingSimilar, setLoadingSimilar] = useState(true);
+  const [similarError, setSimilarError] = useState("");
+
+  // Recommended products
+  const [recommendedProducts, setRecommendedProducts] = useState([]);
+  const [loadingRecommended, setLoadingRecommended] = useState(true);
+  const [recommendedError, setRecommendedError] = useState("");
+
   const averageRating =
     reviews.length > 0
-      ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
+      ? (
+          reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+        ).toFixed(1)
       : null;
 
   if (!product) {
@@ -56,9 +68,88 @@ export default function ProductDetailsScreen({ route, navigation }) {
     }
   };
 
+  // Load similar products, same category, excluding the product being viewed
+  const loadSimilarProducts = async () => {
+    try {
+      setLoadingSimilar(true);
+      setSimilarError("");
+
+      if (!product.category) {
+        setSimilarProducts([]);
+        return;
+      }
+
+      const data = await getProducts(
+        null, // no token needed
+        "", // search
+        product.category, // same category
+        "newest", // sort by newest
+        "asc",
+        "", // minPrice
+        "", // maxPrice
+        "" // inStock
+      );
+
+      const list = Array.isArray(data)
+        ? data
+        : data?.content
+        ? data.content
+        : [];
+
+      const filtered = list.filter((p) => p.id !== product.id);
+
+      // limit to 10
+      setSimilarProducts(filtered.slice(0, 10));
+    } catch (err) {
+      console.log("Failed to load similar products:", err);
+      setSimilarError("Failed to load similar products.");
+      setSimilarProducts([]);
+    } finally {
+      setLoadingSimilar(false);
+    }
+  };
+
+  // Load recommended products for user
+  const loadRecommendedProducts = async () => {
+    try {
+      setLoadingRecommended(true);
+      setRecommendedError("");
+
+      let data;
+      const t = await AsyncStorage.getItem("token");
+
+      if (user && t) {
+        // Personalized recommendations
+        data = await getPersonalRecommendations(t, 10);
+      } else {
+        // Fallback to top rated
+        data = await getTopRatedProducts(10);
+      }
+
+      const list = Array.isArray(data)
+        ? data
+        : data?.content
+        ? data.content
+        : [];
+
+      // Avoid showing the same product at the top
+      const filtered = list.filter((p) => p.id !== product.id);
+
+      setRecommendedProducts(filtered.slice(0, 10));
+    } catch (err) {
+      console.log("Failed to load recommendations:", err);
+      setRecommendedError("Failed to load recommendations.");
+      setRecommendedProducts([]);
+    } finally {
+      setLoadingRecommended(false);
+    }
+  };
+
   useEffect(() => {
     loadReviews();
-  }, []);
+    loadSimilarProducts();
+    loadRecommendedProducts();
+  }, [product.id]);
 
   // Wishlist
   const handleAddToWishlist = async () => {
@@ -131,6 +222,57 @@ export default function ProductDetailsScreen({ route, navigation }) {
     }
   };
 
+  const renderSmallProductCard = (item) => (
+    <TouchableOpacity
+      key={item.id}
+      style={{
+        width: 150,
+        backgroundColor: "#fff",
+        borderRadius: 8,
+        marginRight: 10,
+        padding: 8,
+        ...(Platform.OS === "web"
+          ? { boxShadow: "0 2px 6px rgba(0,0,0,0.1)" }
+          : { elevation: 2 }),
+      }}
+      onPress={() => navigation.push("ProductDetails", { product: item })}
+    >
+      {item.imageUrl ? (
+        <Image
+          source={{ uri: item.imageUrl }}
+          style={{
+            width: "100%",
+            height: 100,
+            borderRadius: 8,
+            marginBottom: 6,
+          }}
+          resizeMode="contain"
+        />
+      ) : (
+        <View
+          style={{
+            width: "100%",
+            height: 100,
+            borderRadius: 8,
+            backgroundColor: "#eee",
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: 6,
+          }}
+        >
+          <Text style={{ color: "#777", fontSize: 12 }}>No Image</Text>
+        </View>
+      )}
+
+      <Text style={{ fontWeight: "bold", fontSize: 13 }} numberOfLines={1}>
+        {item.name}
+      </Text>
+      <Text style={{ color: "#007bff", marginVertical: 2, fontSize: 13 }}>
+        ${item.price}
+      </Text>
+    </TouchableOpacity>
+  );
+
   return (
     <ScrollView style={{ flex: 1, backgroundColor: "#fff" }}>
       <Image
@@ -142,7 +284,7 @@ export default function ProductDetailsScreen({ route, navigation }) {
       <View style={{ padding: 20 }}>
         <Text style={{ fontSize: 22, fontWeight: "bold" }}>{product.name}</Text>
 
-        {/* ✅ Average Rating Display */}
+        {/* Average Rating Display */}
         {averageRating && (
           <Text style={{ fontSize: 16, color: "#ffaa00", marginTop: 4 }}>
             ⭐ {averageRating} / 5 ({reviews.length} reviews)
@@ -168,7 +310,10 @@ export default function ProductDetailsScreen({ route, navigation }) {
           }}
           onPress={() => {
             addToCart(product);
-            Alert.alert("Added to Cart", `${product.name} was added to your cart.`);
+            Alert.alert(
+              "Added to Cart",
+              `${product.name} was added to your cart.`
+            );
           }}
         >
           <Text style={{ color: "#fff", fontSize: 16, fontWeight: "600" }}>
@@ -193,7 +338,14 @@ export default function ProductDetailsScreen({ route, navigation }) {
         </TouchableOpacity>
 
         {/* Reviews */}
-        <Text style={{ fontSize: 20, fontWeight: "bold", marginTop: 20, marginBottom: 10 }}>
+        <Text
+          style={{
+            fontSize: 20,
+            fontWeight: "bold",
+            marginTop: 20,
+            marginBottom: 10,
+          }}
+        >
           Reviews
         </Text>
 
@@ -219,7 +371,9 @@ export default function ProductDetailsScreen({ route, navigation }) {
 
               <Text>{rev.comment}</Text>
 
-              <Text style={{ marginTop: 4, fontSize: 12, color: "#555" }}>
+              <Text
+                style={{ marginTop: 4, fontSize: 12, color: "#555" }}
+              >
                 {rev.createdAt
                   ? new Date(rev.createdAt).toLocaleString()
                   : "Unknown date"}
@@ -237,7 +391,9 @@ export default function ProductDetailsScreen({ route, navigation }) {
                     alignSelf: "flex-start",
                   }}
                 >
-                  <Text style={{ color: "#fff", fontWeight: "600" }}>Delete Review</Text>
+                  <Text style={{ color: "#fff", fontWeight: "600" }}>
+                    Delete Review
+                  </Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -245,7 +401,14 @@ export default function ProductDetailsScreen({ route, navigation }) {
         )}
 
         {/* Add Review Form */}
-        <Text style={{ fontSize: 18, fontWeight: "bold", marginTop: 20, marginBottom: 8 }}>
+        <Text
+          style={{
+            fontSize: 18,
+            fontWeight: "bold",
+            marginTop: 20,
+            marginBottom: 8,
+          }}
+        >
           Write a Review
         </Text>
 
@@ -284,7 +447,7 @@ export default function ProductDetailsScreen({ route, navigation }) {
             paddingVertical: 12,
             borderRadius: 8,
             alignItems: "center",
-            marginBottom: 30,
+            marginBottom: 20,
             opacity: submitting ? 0.6 : 1,
           }}
           onPress={handleSubmitReview}
@@ -295,16 +458,71 @@ export default function ProductDetailsScreen({ route, navigation }) {
           </Text>
         </TouchableOpacity>
 
+        {/* Similar Products */}
+        <Text
+          style={{
+            fontSize: 20,
+            fontWeight: "bold",
+            marginBottom: 10,
+          }}
+        >
+          Similar Products
+        </Text>
+
+        {loadingSimilar ? (
+          <ActivityIndicator size="small" />
+        ) : similarError ? (
+          <Text style={{ color: "red" }}>{similarError}</Text>
+        ) : similarProducts.length === 0 ? (
+          <Text>No similar products found.</Text>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ marginBottom: 20 }}
+          >
+            {similarProducts.map(renderSmallProductCard)}
+          </ScrollView>
+        )}
+
+        {/* Recommended For You / Top Rated */}
+        <Text
+          style={{
+            fontSize: 20,
+            fontWeight: "bold",
+            marginBottom: 10,
+          }}
+        >
+          {user ? "Recommended For You" : "Top Rated Products"}
+        </Text>
+
+        {loadingRecommended ? (
+          <ActivityIndicator size="small" />
+        ) : recommendedError ? (
+          <Text style={{ color: "red" }}>{recommendedError}</Text>
+        ) : recommendedProducts.length === 0 ? (
+          <Text>No recommendations available.</Text>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ marginBottom: 30 }}
+          >
+            {recommendedProducts.map(renderSmallProductCard)}
+          </ScrollView>
+        )}
+
         <TouchableOpacity
           style={{
             backgroundColor: "#ccc",
             paddingVertical: 12,
             borderRadius: 8,
             alignItems: "center",
+            marginBottom: 20,
           }}
-          onPress={() => navigation.goBack()}
+          onPress={() => navigation.navigate("Home")}
         >
-          <Text style={{ color: "#333", fontSize: 16 }}>Back to Products</Text>
+          <Text style={{ color: "#333", fontSize: 16 }}>Back to Home</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>

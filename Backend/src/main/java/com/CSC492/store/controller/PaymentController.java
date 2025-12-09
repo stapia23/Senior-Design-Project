@@ -28,73 +28,37 @@ public class PaymentController {
     private String cancelUrl;
 
     @PostMapping("/create-checkout-session")
-    public ResponseEntity<?> createCheckoutSession(
-            @RequestBody CheckoutRequest request,
-            @AuthenticationPrincipal User user) {
-
+    public ResponseEntity<?> createCheckoutSession(@RequestBody CheckoutRequest request, @AuthenticationPrincipal User user) {
         if (user == null) {
             return ResponseEntity.status(401).body("Unauthorized");
         }
 
         try {
             Stripe.apiKey = stripeSecretKey;
-
             if (request.getItems() == null || request.getItems().isEmpty()) {
                 return ResponseEntity.badRequest().body("Items required");
             }
-
-            SessionCreateParams.Builder builder = SessionCreateParams.builder()
-                    .setMode(SessionCreateParams.Mode.PAYMENT)
-                    .setSuccessUrl(successUrl)
-                    .setCancelUrl(cancelUrl);
-
+            SessionCreateParams.Builder builder = SessionCreateParams.builder().setMode(SessionCreateParams.Mode.PAYMENT).setSuccessUrl(successUrl).setCancelUrl(cancelUrl);
             for (CheckoutItemDTO item : request.getItems()) {
-
                 if (item.getPrice() == null) {
-                    return ResponseEntity.badRequest()
-                            .body("Invalid price for productId=" + item.getProductId());
+                    return ResponseEntity.badRequest().body("Invalid price for productId=" + item.getProductId());
                 }
-
                 if (item.getQuantity() <= 0) {
-                    return ResponseEntity.badRequest()
-                            .body("Invalid quantity for productId=" + item.getProductId());
+                    return ResponseEntity.badRequest().body("Invalid quantity for productId=" + item.getProductId());
                 }
+                long unitAmountCents = item.getPrice().multiply(new BigDecimal("100")).longValue();
 
-                long unitAmountCents = item.getPrice()
-                        .multiply(new BigDecimal("100"))
-                        .longValue();
-
-                builder.addLineItem(
-                        SessionCreateParams.LineItem.builder()
-                                .setQuantity((long) item.getQuantity())
-                                .setPriceData(
-                                        SessionCreateParams.LineItem.PriceData.builder()
-                                                .setCurrency("usd")
-                                                .setUnitAmount(unitAmountCents)
-                                                .setProductData(
-                                                        SessionCreateParams.LineItem.PriceData.ProductData.builder()
-                                                                .setName(item.getName())
-                                                                .build()
-                                                )
-                                                .build()
-                                )
-                                .build()
-                );
+                builder.addLineItem(SessionCreateParams.LineItem.builder().setQuantity((long) item.getQuantity()).setPriceData(
+                                        SessionCreateParams.LineItem.PriceData.builder().setCurrency("usd").setUnitAmount(unitAmountCents).setProductData(
+                                                        SessionCreateParams.LineItem.PriceData.ProductData.builder().setName(item.getName()).build()).build()).build());
             }
 
             Session session = Session.create(builder.build());
-
             return ResponseEntity.ok(
-                    Map.of(
-                            "url", session.getUrl(),
-                            "sessionID", session.getId()
-                    )
-            );
-
+                    Map.of("url", session.getUrl(),"sessionID", session.getId()));
         } catch (Exception e) {
             e.printStackTrace();
-            return ResponseEntity.internalServerError()
-                    .body("Stripe error: " + e.getMessage());
+            return ResponseEntity.internalServerError().body("Stripe error: " + e.getMessage());
         }
     }
 }

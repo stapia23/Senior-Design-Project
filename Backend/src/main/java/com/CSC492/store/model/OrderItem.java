@@ -35,7 +35,9 @@ public class OrderItem {
     }
 
     public BigDecimal calculateTotalPrice() {
-        if (price == null) return BigDecimal.ZERO;
+        if (price == null) {
+            return BigDecimal.ZERO;
+        }
         return price.multiply(BigDecimal.valueOf(quantity));
     }
 

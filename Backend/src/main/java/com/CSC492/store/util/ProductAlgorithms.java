@@ -71,6 +71,7 @@ public class ProductAlgorithms {
     public static List<Product> binarySearch(List<Product> list, String keyword) {
         // this will store all matching products found during the search
         List<Product> results = new ArrayList<>();
+
         // convert the search keyword to lowercase for case insensitive comparing
         keyword = keyword.toLowerCase();
 
@@ -83,6 +84,7 @@ public class ProductAlgorithms {
         while (left <= right) {
             // get the middle index of the current search range
             int mid = (left + right) / 2;
+
             // get the product located at that middle index
             Product p = list.get(mid);
 
@@ -97,6 +99,7 @@ public class ProductAlgorithms {
 
                 // search left of middle for any other matching products
                 int i = mid - 1;
+
                 // loop moving left while product names contain the keyword
                 // this will catch multiple products that match the keyword
                 while (i >= 0 && list.get(i).getName().toLowerCase().contains(keyword)) {
@@ -106,6 +109,7 @@ public class ProductAlgorithms {
 
                 // search right of middle for any other matching products
                 int j = mid + 1;
+                
                 // loop moving right while product names contain the keyword
                 while (j < list.size() && list.get(j).getName().toLowerCase().contains(keyword)) {
                     // add product and increment move right

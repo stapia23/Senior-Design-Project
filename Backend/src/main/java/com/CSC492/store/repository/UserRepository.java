@@ -6,6 +6,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
-    // Case-insensitive email lookup
     User findByEmailIgnoreCase(String email);
 }

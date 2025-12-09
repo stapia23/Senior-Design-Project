@@ -8,6 +8,7 @@ import com.CSC492.store.repository.ProductReviewRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class ProductReviewService {
@@ -21,12 +22,24 @@ public class ProductReviewService {
     }
 
     public List<ProductReview> getReviews(Long productId) {
-        Product product = productRepo.findById(productId).orElseThrow(() -> new RuntimeException("Product not found"));
+        Optional<Product> optional = productRepo.findById(productId);
+        Product product;
+        if (optional.isPresent()) {
+            product = optional.get();
+        } else {
+            throw new RuntimeException("Product not found");
+        }
         return reviewRepo.findByProduct(product);
     }
 
     public ProductReview addReview(Long productId, int rating, String comment, User user) {
-        Product product = productRepo.findById(productId).orElseThrow(() -> new RuntimeException("Product not found"));
+        Optional<Product> optional = productRepo.findById(productId);
+        Product product;
+        if (optional.isPresent()) {
+            product = optional.get();
+        } else {
+            throw new RuntimeException("Product not found");
+        }
         ProductReview review = new ProductReview(rating, comment, product, user);
         return reviewRepo.save(review);
     }

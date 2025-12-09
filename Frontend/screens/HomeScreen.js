@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useContext } from "react";
 import { View, Text, FlatList, Image, TouchableOpacity, TextInput, Alert, ActivityIndicator, Platform, useWindowDimensions } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getProducts } from "../services/api";
+import { getProducts, getTopRatedProducts, getPersonalRecommendations } from "../services/api";
 import { useCart } from "../context/CartContext";
 import { UserContext } from "../context/UserContext";
 
@@ -13,7 +13,7 @@ export default function HomeScreen({ navigation }) {
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
-  const [sortBy, setSortBy] = useState("id");  // "id" or "price" or "newest"
+  const [sortBy, setSortBy] = useState("id"); // "id" or "price" or "newest"
   const [sortDir, setSortDir] = useState("asc"); // "asc" or "desc"
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
@@ -25,19 +25,18 @@ export default function HomeScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // use mode for what we are showing in the list
+  // "catalog" → normal filters/search
+  // "topRated" → /recommendations/top-rated
+  // "personal" → /recommendations/personal
+  const [mode, setMode] = useState("catalog");
+
   const { width } = useWindowDimensions();
   const numColumns = 4;
   const cardMargin = 5;
   const cardWidth = (width - cardMargin * 3) / numColumns;
 
-  const categories = [
-    "Clothing",
-    "Electronics",
-    "Shoes",
-    "Watches",
-    "Jewellery",
-    "Beauty",
-  ];
+  const categories = [ "Clothing", "Electronics", "Shoes", "Watches", "Jewellery", "Beauty" ];
 
   // Load cart on mount
   useEffect(() => {
@@ -58,23 +57,39 @@ export default function HomeScreen({ navigation }) {
     );
   }, [cart]);
 
-  // Fetch products whenever filters/sort/search change
+  // Fetch products whenever filters/sort/search or mode change
   useEffect(() => {
     const fetchProductsData = async () => {
       try {
         setLoading(true);
         setError("");
+        let data;
 
-        const data = await getProducts(
-          token,
-          search,                        // search keyword
-          selectedCategory || "",        // category
-          sortBy,                        // sort field
-          sortDir,                       // sort direction
-          minPrice,                      // min price
-          maxPrice,                      // max price
-          inStockOnly ? "true" : ""      // inStock filter
-        );
+        if (mode === "catalog") {
+          // Normal catalog with filters/search/sort
+          data = await getProducts(
+            token,
+            search, // search keyword
+            selectedCategory || "", // category
+            sortBy, // sort field
+            sortDir, // sort direction
+            minPrice, // min price
+            maxPrice, // max price
+            inStockOnly ? "true" : "" // inStock filter
+          );
+        } else if (mode === "topRated") {
+          // Global top-rated recommendations
+          data = await getTopRatedProducts(token, 50);
+        } else if (mode === "personal") {
+          // Personalized recs; require login
+          if (!user || !token) {
+            setError("Please log in to see personal recommendations.");
+            setProducts([]);
+            setLoading(false);
+            return;
+          }
+          data = await getPersonalRecommendations(token, 50);
+        }
 
         const list = Array.isArray(data)
           ? data
@@ -93,7 +108,18 @@ export default function HomeScreen({ navigation }) {
     };
 
     fetchProductsData();
-  }, [token, search, selectedCategory, sortBy, sortDir, minPrice, maxPrice, inStockOnly]);
+  }, [
+    token,
+    user,
+    search,
+    selectedCategory,
+    sortBy,
+    sortDir,
+    minPrice,
+    maxPrice,
+    inStockOnly,
+    mode,
+  ]);
 
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -112,6 +138,7 @@ export default function HomeScreen({ navigation }) {
   };
 
   const handleClearFilters = () => {
+    setMode("catalog");
     setSearch("");
     setSearchInput("");
     setSelectedCategory("");
@@ -119,8 +146,79 @@ export default function HomeScreen({ navigation }) {
     setSortDir("asc");
     setMinPrice("");
     setMaxPrice("");
+    setMinPriceInput("");
+    setMaxPriceInput("");
     setInStockOnly(false);
   };
+
+  const handleSearch = () => {
+    setMode("catalog");
+    setSearch(searchInput.trim());
+  };
+
+  const handleCategoryPress = (cat) => {
+    setMode("catalog");
+    setSelectedCategory(selectedCategory === cat ? "" : cat);
+  };
+
+  const handleMinPriceSubmit = () => {
+    setMode("catalog");
+    setMinPrice(minPriceInput);
+  };
+
+  const handleMaxPriceSubmit = () => {
+    setMode("catalog");
+    setMaxPrice(maxPriceInput);
+  };
+
+  const handleToggleInStock = () => {
+    setMode("catalog");
+    setInStockOnly((prev) => !prev);
+  };
+
+  const handleSortNewest = () => {
+    setMode("catalog");
+    setSortBy("newest");
+    setSortDir("asc");
+  };
+
+  const handleSortPriceLowHigh = () => {
+    setMode("catalog");
+    setSortBy("price");
+    setSortDir("asc");
+  };
+
+  const handleSortPriceHighLow = () => {
+    setMode("catalog");
+    setSortBy("price");
+    setSortDir("desc");
+  };
+
+  const handleTopRatedPress = () => {
+    setError("");
+    setMode("topRated");
+  };
+
+  const handlePersonalPress = () => {
+    if (!user || !token) {
+      Alert.alert(
+        "Login required",
+        "Please log in to see personalized recommendations."
+      );
+      return;
+    }
+    setError("");
+    setMode("personal");
+  };
+
+  const headingText =
+    mode === "topRated"
+      ? "Top Rated Products"
+      : mode === "personal"
+      ? "Recommended For You"
+      : selectedCategory
+      ? `${selectedCategory} Products`
+      : "Products";
 
   return (
     <View style={containerStyle}>
@@ -203,7 +301,7 @@ export default function HomeScreen({ navigation }) {
                 />
                 <TouchableOpacity
                   style={{ padding: 10 }}
-                  onPress={() => setSearch(searchInput.trim())}
+                  onPress={handleSearch}
                 >
                   <Text style={{ color: "#007bff", fontWeight: "bold" }}>
                     Search
@@ -224,11 +322,7 @@ export default function HomeScreen({ navigation }) {
                 {categories.map((cat) => (
                   <TouchableOpacity
                     key={cat}
-                    onPress={() =>
-                      setSelectedCategory(
-                        selectedCategory === cat ? "" : cat
-                      )
-                    }
+                    onPress={() => handleCategoryPress(cat)}
                     style={{
                       backgroundColor:
                         selectedCategory === cat ? "#007bff" : "#f2f2f2",
@@ -270,7 +364,7 @@ export default function HomeScreen({ navigation }) {
                     value={minPriceInput}
                     onChangeText={setMinPriceInput}
                     keyboardType="numeric"
-                    onSubmitEditing={() => setMinPrice(minPriceInput)}
+                    onSubmitEditing={handleMinPriceSubmit}
                     style={{
                       borderWidth: 1,
                       borderColor: "#ccc",
@@ -287,7 +381,7 @@ export default function HomeScreen({ navigation }) {
                     value={maxPriceInput}
                     onChangeText={setMaxPriceInput}
                     keyboardType="numeric"
-                    onSubmitEditing={() => setMaxPrice(maxPriceInput)}
+                    onSubmitEditing={handleMaxPriceSubmit}
                     style={{
                       borderWidth: 1,
                       borderColor: "#ccc",
@@ -302,7 +396,7 @@ export default function HomeScreen({ navigation }) {
 
                 {/* In-stock toggle */}
                 <TouchableOpacity
-                  onPress={() => setInStockOnly((prev) => !prev)}
+                  onPress={handleToggleInStock}
                   style={{
                     paddingHorizontal: 12,
                     paddingVertical: 6,
@@ -340,10 +434,7 @@ export default function HomeScreen({ navigation }) {
 
                 <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
                   <TouchableOpacity
-                    onPress={() => {
-                      setSortBy("newest");
-                      setSortDir("asc");
-                    }}
+                    onPress={handleSortNewest}
                     style={{
                       paddingHorizontal: 10,
                       paddingVertical: 6,
@@ -351,12 +442,17 @@ export default function HomeScreen({ navigation }) {
                       marginRight: 6,
                       marginBottom: 4,
                       backgroundColor:
-                        sortBy === "newest" ? "#007bff" : "#f2f2f2",
+                        sortBy === "newest" && mode === "catalog"
+                          ? "#007bff"
+                          : "#f2f2f2",
                     }}
                   >
                     <Text
                       style={{
-                        color: sortBy === "newest" ? "#fff" : "#000",
+                        color:
+                          sortBy === "newest" && mode === "catalog"
+                            ? "#fff"
+                            : "#000",
                         fontSize: 13,
                       }}
                     >
@@ -365,10 +461,7 @@ export default function HomeScreen({ navigation }) {
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    onPress={() => {
-                      setSortBy("price");
-                      setSortDir("asc");
-                    }}
+                    onPress={handleSortPriceLowHigh}
                     style={{
                       paddingHorizontal: 10,
                       paddingVertical: 6,
@@ -376,7 +469,9 @@ export default function HomeScreen({ navigation }) {
                       marginRight: 6,
                       marginBottom: 4,
                       backgroundColor:
-                        sortBy === "price" && sortDir === "asc"
+                        sortBy === "price" &&
+                        sortDir === "asc" &&
+                        mode === "catalog"
                           ? "#007bff"
                           : "#f2f2f2",
                     }}
@@ -384,7 +479,9 @@ export default function HomeScreen({ navigation }) {
                     <Text
                       style={{
                         color:
-                          sortBy === "price" && sortDir === "asc"
+                          sortBy === "price" &&
+                          sortDir === "asc" &&
+                          mode === "catalog"
                             ? "#fff"
                             : "#000",
                         fontSize: 13,
@@ -395,10 +492,7 @@ export default function HomeScreen({ navigation }) {
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    onPress={() => {
-                      setSortBy("price");
-                      setSortDir("desc");
-                    }}
+                    onPress={handleSortPriceHighLow}
                     style={{
                       paddingHorizontal: 10,
                       paddingVertical: 6,
@@ -406,7 +500,9 @@ export default function HomeScreen({ navigation }) {
                       marginRight: 6,
                       marginBottom: 4,
                       backgroundColor:
-                        sortBy === "price" && sortDir === "desc"
+                        sortBy === "price" &&
+                        sortDir === "desc" &&
+                        mode === "catalog"
                           ? "#007bff"
                           : "#f2f2f2",
                     }}
@@ -414,7 +510,9 @@ export default function HomeScreen({ navigation }) {
                     <Text
                       style={{
                         color:
-                          sortBy === "price" && sortDir === "desc"
+                          sortBy === "price" &&
+                          sortDir === "desc" &&
+                          mode === "catalog"
                             ? "#fff"
                             : "#000",
                         fontSize: 13,
@@ -440,6 +538,63 @@ export default function HomeScreen({ navigation }) {
                 </TouchableOpacity>
               </View>
 
+              {/* RECOMMENDATION ROW */}
+              <View
+                style={{
+                  backgroundColor: "#fff",
+                  paddingHorizontal: 10,
+                  paddingVertical: 8,
+                  flexDirection: "row",
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ fontWeight: "600", marginRight: 8 }}>
+                  Recommendations:
+                </Text>
+
+                <TouchableOpacity
+                  onPress={handleTopRatedPress}
+                  style={{
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    borderRadius: 16,
+                    marginRight: 6,
+                    backgroundColor:
+                      mode === "topRated" ? "#007bff" : "#f2f2f2",
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: mode === "topRated" ? "#fff" : "#000",
+                      fontSize: 13,
+                    }}
+                  >
+                    Top-Rated
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={handlePersonalPress}
+                  style={{
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    borderRadius: 16,
+                    backgroundColor:
+                      mode === "personal" ? "#28a745" : "#f2f2f2",
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: mode === "personal" ? "#fff" : "#000",
+                      fontSize: 13,
+                    }}
+                  >
+                    Recommended for You
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* SECTION TITLE */}
               <Text
                 style={{
                   fontSize: 18,
@@ -448,9 +603,7 @@ export default function HomeScreen({ navigation }) {
                   paddingHorizontal: 10,
                 }}
               >
-                {selectedCategory
-                  ? `${selectedCategory} Products`
-                  : "Products"}
+                {headingText}
               </Text>
             </>
           }
@@ -527,7 +680,10 @@ export default function HomeScreen({ navigation }) {
                 }}
                 onPress={() => {
                   addToCart(item);
-                  Alert.alert("Added to Cart", `${item.name} added to your cart`);
+                  Alert.alert(
+                    "Added to Cart",
+                    `${item.name} added to your cart`
+                  );
                 }}
               >
                 <Text style={{ color: "#fff", fontWeight: "600" }}>

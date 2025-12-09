@@ -59,8 +59,7 @@ public class ProductController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "100") int size,
             @RequestParam(defaultValue = "id") String sortBy,
-            @RequestParam(defaultValue = "asc") String sortDir
-    ) {
+            @RequestParam(defaultValue = "asc") String sortDir) {
         Page<Product> products = productService.getProducts(category, search, minPrice, maxPrice, inStock, page, size, sortBy, sortDir);
         return ResponseEntity.ok(products);
     }
@@ -69,6 +68,25 @@ public class ProductController {
     @GetMapping("/category/{category}")
     public ResponseEntity<List<Product>> getByCategory(@PathVariable String category) {
         return ResponseEntity.ok(productService.getByCategory(category));
+    }
+
+    // Recommendations
+    // Top-rated products
+    @GetMapping("/recommendations/top-rated")
+    @PreAuthorize("permitAll()")
+    public ResponseEntity<List<Product>> getTopRatedProducts(@RequestParam(defaultValue = "50") int n) {
+        return ResponseEntity.ok(productService.getTopRatedProducts(n));
+    }
+
+    // Personalized-based: user's order history
+    @GetMapping("/recommendations/personal")
+    @PreAuthorize("hasRole('CUSTOMER') or hasRole('ADMIN')")
+    public ResponseEntity<List<Product>> getPersonalRecommendations(@AuthenticationPrincipal User currentUser, @RequestParam(defaultValue = "50") int n ) {
+        if (currentUser == null) {
+            // Fallback to top rated if somehow no principal
+            return ResponseEntity.ok(productService.getTopRatedProducts(n));
+        }
+        return ResponseEntity.ok(productService.getRecommendationsForUser(currentUser.getId(), n));
     }
 
     // Update product (Admin only)

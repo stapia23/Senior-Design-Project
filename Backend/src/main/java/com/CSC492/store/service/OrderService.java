@@ -37,7 +37,9 @@ public class OrderService {
     @Transactional
     public Order createOrder(Order order) {
         if (order.getOrderItems() != null) {
-            order.getOrderItems().forEach(item -> item.setOrder(order));
+            for (OrderItem item : order.getOrderItems()) {
+                item.setOrder(order);
+            }
         }
         order.calculateTotalPrice();
         return orderRepository.save(order);
@@ -59,8 +61,14 @@ public class OrderService {
         order.setOrderItems(new ArrayList<>());
 
         for (CheckoutItemDTO dto : items) {
+            Optional<Product> optional = productRepository.findById(dto.getProductId());
 
-            Product product = productRepository.findById(dto.getProductId()).orElseThrow(() -> new Exception("Product not found: " + dto.getProductId()));
+            Product product;
+            if (optional.isPresent()) {
+                product = optional.get();
+            } else {
+                throw new Exception("Product not found: " + dto.getProductId());
+            }
             OrderItem oi = new OrderItem();
             oi.setOrder(order);
             oi.setProduct(product);
@@ -90,7 +98,9 @@ public class OrderService {
     @Transactional
     public List<Order> getOrdersByUser(User user) {
         List<Order> orders = orderRepository.findByUser(user);
-        orders.forEach(o -> o.getOrderItems().size());
+        for (Order o : orders) {
+            o.getOrderItems().size();
+        }
         return orders;
     }
 
@@ -98,7 +108,9 @@ public class OrderService {
     @Transactional
     public List<Order> getAllOrders() {
         List<Order> orders = orderRepository.findAll();
-        orders.forEach(o -> o.getOrderItems().size());
+        for (Order o : orders) {
+            o.getOrderItems().size();
+        }
         return orders;
     }
 
@@ -106,14 +118,22 @@ public class OrderService {
     @Transactional
     public Optional<Order> getOrderById(Long id) {
         Optional<Order> opt = orderRepository.findById(id);
-        opt.ifPresent(o -> o.getOrderItems().size());
+        if (opt.isPresent()) {
+            opt.get().getOrderItems().size();
+        }
         return opt;
     }
 
     // order status
     @Transactional
     public Order updateStatus(Long orderId, Order.Status status) throws Exception {
-        Order order = orderRepository.findById(orderId).orElseThrow(() -> new Exception("Order not found"));
+        Optional<Order> optional = orderRepository.findById(orderId);
+        Order order;
+        if (optional.isPresent()) {
+            order = optional.get();
+        } else {
+            throw new Exception("Order not found");
+        }
         order.setStatus(status);
         return orderRepository.save(order);
     }

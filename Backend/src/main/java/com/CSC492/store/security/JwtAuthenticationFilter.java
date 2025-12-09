@@ -28,11 +28,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain)
-            throws ServletException, IOException {
-
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
         System.out.println("Incoming request: " + request.getMethod() + " " + request.getRequestURI());
         final String authHeader = request.getHeader("Authorization");
         System.out.println("Authorization header: " + authHeader);
@@ -45,17 +41,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                     User user = userService.findByEmail(email);
-                    System.out.println("User found: " + (user != null ? user.getEmail() : "null"));
+                    if (user != null) {
+                        System.out.println("User found: " + user.getEmail());
+                    } else {
+                        System.out.println("User found: null");
+                    }
 
                     if (user != null && jwtUtil.validateToken(token, user.getEmail())) {
                         System.out.println("Token valid for user: " + user.getEmail());
                         System.out.println("Assigning authority: ROLE_" + user.getRole().name());
 
-                        SimpleGrantedAuthority authority =
-                                new SimpleGrantedAuthority("ROLE_" + user.getRole().name());
+                        SimpleGrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + user.getRole().name());
 
-                        UsernamePasswordAuthenticationToken authToken =
-                                new UsernamePasswordAuthenticationToken(user, null, Collections.singletonList(authority));
+                        UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(user, null, Collections.singletonList(authority));
                         authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                         SecurityContextHolder.getContext().setAuthentication(authToken);
 
@@ -67,7 +65,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             } else {
                 System.out.println("No Bearer token found");
             }
-
         } catch (Exception e) {
             System.out.println("JWT validation failed: " + e.getMessage());
         }

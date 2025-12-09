@@ -3,8 +3,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export const API_URL =
   Platform.OS === "android"
-    ? "http://10.0.2.2:8080" // Android
-    : "http://localhost:8080"; // Web
+    ? "http://10.0.2.2:8080"
+    : "http://localhost:8080";
 
 async function fetchWithTimeout(resource, options = {}, timeoutMs = 10000) {
   const controller = new AbortController();
@@ -46,7 +46,9 @@ async function getFetchOptions(method, body = null, needsAuth = true, token = nu
   return opts;
 }
 
-// Auth fuctions for login and register
+//
+// AUTH
+//
 export const login = async (email, password) => {
   const res = await fetchWithTimeout(`${API_URL}/api/auth/login`, {
     method: "POST",
@@ -57,6 +59,7 @@ export const login = async (email, password) => {
   if (!res.ok) {
     throw new Error(await res.text());
   }
+
   const data = await res.json();
 
   const user = data.user || {
@@ -84,12 +87,15 @@ export async function register(user) {
   return res.json();
 }
 
-// Product functions
+//
+// PRODUCTS
+//
 export async function createProduct(product, token = null) {
   const res = await fetchWithTimeout(
     `${API_URL}/api/products`,
     await getFetchOptions("POST", product, true, token)
   );
+
   if (!res.ok) {
     throw new Error(await res.text());
   }
@@ -111,7 +117,7 @@ export async function getProducts( token = null, search = "", category = "", sor
   try {
     let url = `${API_URL}/api/products?sortBy=${sortBy}&sortDir=${sortDir}`;
 
-    if (search) { 
+    if (search) {
       url += `&search=${encodeURIComponent(search)}`;
     }
     if (category) {
@@ -129,7 +135,7 @@ export async function getProducts( token = null, search = "", category = "", sor
 
     const headers = {
       "Content-Type": "application/json",
-      Accept: "application/json"
+      Accept: "application/json",
     };
 
     if (token && token !== "null" && token !== "undefined") {
@@ -137,6 +143,7 @@ export async function getProducts( token = null, search = "", category = "", sor
     }
 
     const res = await fetchWithTimeout(url, { method: "GET", headers });
+
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}: ${await res.text()}`);
     }
@@ -149,14 +156,13 @@ export async function getProducts( token = null, search = "", category = "", sor
   }
 }
 
-// Products by category
 export async function getProductsByCategory(category, token = null) {
   const headers = {
     "Content-Type": "application/json",
     Accept: "application/json",
   };
 
-  if (token && token !== "null" && token !== "undefined") {
+  if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
@@ -169,11 +175,56 @@ export async function getProductsByCategory(category, token = null) {
     throw new Error(`HTTP ${res.status}: ${await res.text()}`);
   }
 
-  return await res.json();
+  return res.json();
 }
 
+//
+// RECOMMENDATIONS
+//
+export async function getTopRatedProducts(token = null, n = 50) {
+  const headers = { Accept: "application/json" };
 
-// Admin functions
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const res = await fetchWithTimeout(
+    `${API_URL}/api/products/recommendations/top-rated?n=${n}`,
+    { method: "GET", headers }
+  );
+
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+  }
+
+  return res.json();
+}
+
+export async function getPersonalRecommendations(token = null, n = 50) {
+  if (!token) {
+    throw new Error("Authentication required");
+  }
+
+  const headers = {
+    Accept: "application/json",
+    Authorization: `Bearer ${token}`,
+  };
+
+  const res = await fetchWithTimeout(
+    `${API_URL}/api/products/recommendations/personal?n=${n}`,
+    { method: "GET", headers }
+  );
+
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+  }
+
+  return res.json();
+}
+
+//
+// ADMIN
+//
 export async function getAdmins(token = null) {
   const res = await fetchWithTimeout(
     `${API_URL}/api/admin/users`,
@@ -183,6 +234,7 @@ export async function getAdmins(token = null) {
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}: ${await res.text()}`);
   }
+
   const users = await res.json();
   return users.filter((u) => u.role === "ADMIN");
 }
@@ -192,9 +244,11 @@ export async function createAdmin(admin, token = null) {
     `${API_URL}/api/admin/admins`,
     await getFetchOptions("POST", { ...admin, role: "ADMIN" }, true, token)
   );
+
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}: ${await res.text()}`);
   }
+
   return res.json();
 }
 
@@ -207,10 +261,13 @@ export async function deleteAdmin(userId, token = null) {
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}: ${await res.text()}`);
   }
+
   return res.text();
 }
 
-// User profile
+//
+// USER PROFILE
+//
 export async function getCurrentUserProfile(token = null) {
   const res = await fetchWithTimeout(
     `${API_URL}/api/users/me`,
@@ -235,7 +292,9 @@ export async function deleteMyAccount(token = null) {
   return res.text();
 }
 
-// Image upload
+//
+// IMAGE UPLOAD
+// 
 export async function uploadImage(formData, token = null) {
   const headers = {};
   if (token) {
@@ -251,10 +310,13 @@ export async function uploadImage(formData, token = null) {
   if (!res.ok) {
     throw new Error(`Upload failed: ${await res.text()}`);
   }
+
   return res.text();
 }
 
-// Stripe checkout process
+//
+// STRIPE
+// 
 export async function createCheckoutSession(cartItems, token = null) {
   console.log("Stripe Checkout → Payload:", cartItems);
   console.log("API:", `${API_URL}/api/payments/create-checkout-session`);
@@ -267,51 +329,62 @@ export async function createCheckoutSession(cartItems, token = null) {
   if (!res.ok) {
     throw new Error(await res.text());
   }
+
   return res.json();
 }
 
-// Wishlist functions
-export async function addToWishlist(productId, token=null) {
+//
+// WISHLIST
+//
+export async function addToWishlist(productId, token = null) {
   const headers = { Authorization: `Bearer ${token}` };
-  const res = await fetch(`${API_URL}/api/wishlist/add/${productId}`, {
-    method: "POST",
-    headers,
-  });
+
+  const res = await fetch(
+    `${API_URL}/api/wishlist/add/${productId}`,
+    { method: "POST", headers }
+  );
+
   if (!res.ok) {
     throw new Error(await res.text());
   }
   return res.json();
 }
 
-export async function removeFromWishlist(productId, token=null) {
+export async function removeFromWishlist(productId, token = null) {
   const headers = { Authorization: `Bearer ${token}` };
-  const res = await fetch(`${API_URL}/api/wishlist/remove/${productId}`, {
-    method: "DELETE",
-    headers,
-  });
+
+  const res = await fetch(
+    `${API_URL}/api/wishlist/remove/${productId}`,
+    { method: "DELETE", headers }
+  );
+
   if (!res.ok) {
     throw new Error(await res.text());
   }
   return true;
 }
 
-export async function getWishlist(token=null) {
-  const headers = { 
-    "Accept": "application/json",
+export async function getWishlist(token = null) {
+  const headers = {
+    Accept: "application/json",
     "Content-Type": "application/json",
-    "Authorization": `Bearer ${token}`
+    Authorization: `Bearer ${token}`,
   };
 
   const res = await fetch(`${API_URL}/api/wishlist`, { headers });
+
   if (!res.ok) {
     throw new Error(await res.text());
   }
   return res.json();
 }
 
-// Review functions
+//
+// REVIEWS
+// 
 export async function getReviews(productId) {
   const res = await fetch(`${API_URL}/api/reviews/${productId}`);
+
   if (!res.ok) {
     throw new Error(await res.text());
   }
@@ -340,11 +413,11 @@ export const deleteReview = async (id, token) => {
   const res = await fetch(`${API_URL}/api/reviews/${id}`, {
     method: "DELETE",
     headers: {
-      "Accept": "application/json",
+      Accept: "application/json",
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${token}`,
+      Authorization: `Bearer ${token}`,
     },
-  }).catch(err => {
+  }).catch((err) => {
     console.log("FETCH ERROR:", err);
     throw err;
   });

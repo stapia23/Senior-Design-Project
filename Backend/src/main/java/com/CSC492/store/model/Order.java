@@ -11,12 +11,7 @@ import jakarta.persistence.*;
 @Table(name = "orders")
 public class Order {
 
-    public enum Status {
-        PENDING,
-        PROCESSING,
-        COMPLETED,
-        CANCELLED
-    }
+    public enum Status { PENDING, PROCESSING, COMPLETED, CANCELLED }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -26,12 +21,7 @@ public class Order {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @OneToMany(
-            cascade = CascadeType.ALL,
-            mappedBy = "order",
-            orphanRemoval = true,
-            fetch = FetchType.EAGER
-    )
+    @OneToMany( cascade = CascadeType.ALL, mappedBy = "order", orphanRemoval = true, fetch = FetchType.EAGER)
     @JsonManagedReference
     private List<OrderItem> orderItems;
 
@@ -50,9 +40,10 @@ public class Order {
         this.status = status;
 
         if (orderItems != null) {
-            orderItems.forEach(item -> item.setOrder(this));
+            for (OrderItem item : orderItems) {
+                item.setOrder(this);
+            }
         }
-
         calculateTotalPrice();
     }
 
@@ -69,9 +60,7 @@ public class Order {
         if (orderItems == null || orderItems.isEmpty()) {
             totalPrice = BigDecimal.ZERO;
         } else {
-            totalPrice = orderItems.stream()
-                    .map(OrderItem::calculateTotalPrice)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            totalPrice = orderItems.stream().map(OrderItem::calculateTotalPrice).reduce(BigDecimal.ZERO, BigDecimal::add);
         }
     }
 

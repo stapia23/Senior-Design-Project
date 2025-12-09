@@ -5,6 +5,7 @@ import com.CSC492.store.service.UserService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/users")  // base path for user management
@@ -25,8 +26,12 @@ public class UserManagementController {
     // Get a user by ID
     @GetMapping("/{id}")
     public User getUserById(@PathVariable Long id) {
-        return userService.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        Optional<User> optional = userService.findById(id);
+        if (optional.isPresent()) {
+            return optional.get();
+        } else {
+            throw new RuntimeException("User not found");
+        }
     }
 
     // Delete a user by ID
@@ -39,9 +44,13 @@ public class UserManagementController {
     // Update a user
     @PutMapping("/{id}")
     public User updateUser(@PathVariable Long id, @RequestBody User updatedUser) {
-        User user = userService.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
+        Optional<User> optional = userService.findById(id);
+        User user;
+        if (optional.isPresent()) {
+            user = optional.get();
+        } else {
+            throw new RuntimeException("User not found");
+        }
         user.setName(updatedUser.getName());
         user.setEmail(updatedUser.getEmail());
 
@@ -49,7 +58,6 @@ public class UserManagementController {
         if (updatedUser.getPassword() != null && !updatedUser.getPassword().isEmpty()) {
             user.setPassword(updatedUser.getPassword());
         }
-
         return userService.save(user);
     }
 }

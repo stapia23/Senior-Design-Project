@@ -36,16 +36,10 @@ public class ProductReviewController {
     }
 
     @PostMapping("/{productId}")
-    public ProductReview addReview(
-            @RequestHeader("Authorization") String token,
-            @PathVariable Long productId,
-            @RequestBody ReviewRequest req) {
-
+    public ProductReview addReview(@RequestHeader("Authorization") String token, @PathVariable Long productId, @RequestBody ReviewRequest req) {
         User user = getUser(token);
-
         return reviewService.addReview(productId, req.rating, req.comment, user);
     }
-
     public static class ReviewRequest {
         public int rating;
         public String comment;

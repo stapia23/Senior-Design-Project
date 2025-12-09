@@ -10,6 +10,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -37,8 +38,7 @@ public class AdminController {
 
     // Delete a user by ID, Admin only
     @DeleteMapping("/users/{id}")
-    public ResponseEntity<?> deleteUser(@PathVariable Long id,
-                                        @AuthenticationPrincipal User user) {
+    public ResponseEntity<?> deleteUser(@PathVariable Long id, @AuthenticationPrincipal User user) {
         if (user == null || user.getRole() != User.Role.ADMIN) {
             return ResponseEntity.status(403).body("Forbidden");
         }
@@ -60,22 +60,24 @@ public class AdminController {
 
     // Get a specific order by ID, Admin only
     @GetMapping("/orders/{id}")
-    public ResponseEntity<?> getOrderById(@PathVariable Long id,
-                                          @AuthenticationPrincipal User user) {
+    public ResponseEntity<?> getOrderById(@PathVariable Long id, @AuthenticationPrincipal User user) {
         if (user == null || user.getRole() != User.Role.ADMIN) {
             return ResponseEntity.status(403).body("Forbidden");
         }
 
-        return orderService.getOrderById(id)
-                .map(order -> ResponseEntity.ok(order))
-                .orElse(ResponseEntity.notFound().build());
+        Optional<Order> optional = orderService.getOrderById(id);
+
+        if (optional.isPresent()) {
+            return ResponseEntity.ok(optional.get());
+        } else {
+            return ResponseEntity.notFound().build();
+        }
+
     }
 
     // Update order status, Admin only
     @PatchMapping("/orders/{id}/status")
-    public ResponseEntity<?> updateOrderStatus(@PathVariable Long id,
-                                               @RequestParam String status,
-                                               @AuthenticationPrincipal User user) {
+    public ResponseEntity<?> updateOrderStatus(@PathVariable Long id, @RequestParam String status, @AuthenticationPrincipal User user) {
         if (user == null || user.getRole() != User.Role.ADMIN) {
             return ResponseEntity.status(403).body("Forbidden");
         }
@@ -109,8 +111,7 @@ public class AdminController {
     
     // Delete admin by ID, Admin only
     @DeleteMapping("/admins/{id}")
-    public ResponseEntity<?> deleteAdmin(@PathVariable Long id,
-                                         @AuthenticationPrincipal User currentUser) {
+    public ResponseEntity<?> deleteAdmin(@PathVariable Long id, @AuthenticationPrincipal User currentUser) {
         if (currentUser == null || currentUser.getRole() != User.Role.ADMIN) {
             return ResponseEntity.status(403).body("Forbidden");
         }
@@ -119,8 +120,7 @@ public class AdminController {
             return ResponseEntity.badRequest().body("You cannot delete yourself.");
         }
 
-        User adminToDelete = userService.findById(id)
-                .orElse(null);
+        User adminToDelete = userService.findById(id).orElse(null);
 
         if (adminToDelete == null || adminToDelete.getRole() != User.Role.ADMIN) {
             return ResponseEntity.badRequest().body("Admin not found.");

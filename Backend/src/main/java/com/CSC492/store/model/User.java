@@ -6,10 +6,7 @@ import jakarta.persistence.*;
 @Table(name = "users") // Adds Table named "users" to MySQL
 public class User {
 
-    public enum Role {
-        ADMIN,
-        CUSTOMER
-    }
+    public enum Role { ADMIN, CUSTOMER }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

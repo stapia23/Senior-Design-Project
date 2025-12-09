@@ -29,10 +29,8 @@ public class UserController {
     public ResponseEntity<?> register(@RequestBody User user) {
         try {
             if (userService.findByEmail(user.getEmail()) != null) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body("Email is already in use.");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Email is already in use.");
             }
-
             if (user.getRole() == null) {
                 user.setRole(User.Role.CUSTOMER);
             }
@@ -44,8 +42,7 @@ public class UserController {
 
         } catch (Exception e) {
             e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("An error occurred during registration");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred during registration");
         }
     }
 
@@ -73,10 +70,7 @@ public class UserController {
     // UPDATE profile for Customer and Admin
     @PutMapping("/me")
     @PreAuthorize("hasAnyRole('CUSTOMER', 'ADMIN')")
-    public ResponseEntity<?> updateProfile(
-            @AuthenticationPrincipal User currentUser,
-            @RequestBody User updatedUser) {
-
+    public ResponseEntity<?> updateProfile(@AuthenticationPrincipal User currentUser, @RequestBody User updatedUser) {
         if (currentUser == null) {
             return ResponseEntity.status(401).body("Unauthorized");
         }
